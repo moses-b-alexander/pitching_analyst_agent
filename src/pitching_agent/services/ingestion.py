@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from pitching_agent.sources import mlb
-from pitching_agent.store import load_snapshots, save_snapshot, upsert_pas, upsert_pitches
+from pitching_agent.store import load_snapshots, prune_snapshots, save_snapshot, upsert_pas, upsert_pitches
 
 SOURCE = "mlb_live"
 
@@ -39,6 +39,12 @@ def ingest_feed(conn: sqlite3.Connection, feed: dict[str, Any], *, store_snapsho
         pitches, pas = mlb.normalize(feed)
         stats = upsert_pitches(conn, pitches, SOURCE)
         upsert_pas(conn, pas, SOURCE)
+        if info.status == "Final":
+            conn.execute(
+                "UPDATE games SET final_seen_at = CURRENT_TIMESTAMP WHERE game_id = ? AND final_seen_at IS NULL",
+                (info.game_id,),
+            )
+            prune_snapshots(conn, info.game_id, SOURCE)
     return IngestResult(info, new, stats["inserted"], stats["revised"])
 
 

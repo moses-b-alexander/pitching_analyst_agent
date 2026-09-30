@@ -15,7 +15,14 @@ from pitching_agent.compositor import capsule  # noqa: E402
 from pitching_agent.config import load_config  # noqa: E402
 from pitching_agent.services.ingestion import poll_once  # noqa: E402
 from pitching_agent.sources import mlb  # noqa: E402
-from pitching_agent.store import connect, init_db, load_pas, load_pitches  # noqa: E402
+from pitching_agent.store import (  # noqa: E402
+    clear_game_analysis,
+    connect,
+    init_db,
+    load_pas,
+    load_pitches,
+    purge_expired,
+)
 
 
 async def snapshot(conn, game_id: int) -> None:
@@ -43,6 +50,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--game", type=int, help="MLB gamePk")
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--once", action="store_true", help="ingest once and print starter lines")
+    parser.add_argument("--clear-game", type=int, metavar="GAMEPK", help="delete a game's observations/hypotheses/summaries")
     parser.add_argument("--version", action="version", version=__version__)
     args = parser.parse_args(argv)
 
@@ -52,6 +60,13 @@ def main(argv: list[str] | None = None) -> int:
 
     roles = ", ".join(f"{r}={spec or 'unset'}" for r, spec in cfg.models.items())
     print(f"live-pitching-agent {__version__} | db={cfg.db_path} | {roles}")
+
+    for game_id in purge_expired(conn):
+        print(f"Auto-cleared analysis for game {game_id} (final > 24 h).")
+    if args.clear_game is not None:
+        counts = clear_game_analysis(conn, args.clear_game)
+        print(f"Cleared game {args.clear_game}: " + ", ".join(f"{n} {t}" for t, n in counts.items()))
+        return 0
     if args.game is None:
         print("No --game given.")
         return 0

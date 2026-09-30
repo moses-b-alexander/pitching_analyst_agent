@@ -111,10 +111,12 @@ def test_store_roundtrip_revision_and_replay(final_feed, mid_feed):
     assert len(stored_p) == len(orig_p) and stored_pa == orig_pa
     assert window_line(stored_p, stored_pa, RYAN) == window_line(orig_p, orig_pa, RYAN)
 
-    # Restart recovery: fresh normalized tables rebuilt from raw snapshots alone
+    # Final: older snapshots pruned to the latest; revision history lives in field_revisions
+    assert conn.execute("SELECT COUNT(*) FROM raw_snapshots").fetchone()[0] == 1
+
+    # Restart recovery: normalized tables rebuilt from the remaining snapshot alone
     conn.execute("DELETE FROM pitches")
     conn.execute("DELETE FROM plate_appearances")
-    conn.execute("DELETE FROM field_revisions")
     replay(conn, GAME)
     assert conn.execute("SELECT COUNT(*) FROM field_revisions").fetchone()[0] == 1
     assert {asdict(p)["pitch_type"] for p in load_pitches(conn, GAME) if p.at_bat_number == 1 and p.pitch_number == 1} == {"SI"}

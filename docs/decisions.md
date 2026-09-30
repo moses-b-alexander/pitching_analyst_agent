@@ -13,7 +13,7 @@ Decided 2026-09-30.
 | 1 | Half-inning output initiation | **Auto-print the deterministic factual capsule only.** Exec thesis runs on request (or when a pending observation for that pitcher exists). No LLM cost on quiet innings. |
 | 2 | Observation attribution | **User names the team or player explicitly.** Session keeps team membership for the two SPs only, so "Yankees" or "Schlittler" resolves to a starter. If no team/player is named, ask — do not guess from the active pitcher. |
 | 3 | Stat-test execution | **Explicit request only.** Suggest freely; never auto-run, including pre-frozen prospective tests. |
-| 4 | Cross-game personalization | **Preferences persist; hypotheses don't.** Persist favored problem classes, baseline choices, test preferences, zone-definition variants. Observations and theses are game/pitcher-scoped. Frozen hypotheses may carry into the same pitcher's next start (SKILL.md §5). |
+| 4 | Cross-game personalization | **Preferences persist; hypotheses don't.** Persist favored problem classes, baseline choices, test preferences, zone-definition variants. Observations and theses are game/pitcher-scoped. Hypotheses, including frozen ones, are cleared with the game (#12), so they do **not** carry into the pitcher's next start (overrides SKILL.md §5's carry-forward option). |
 | 5 | Restart/recovery | **Required for V1.** On restart, rebuild game state from the replayable MLB feed and restore observations/hypotheses from SQLite. |
 | 6 | Source-conflict policy | **MLB live feed wins automatically.** MLB boxscore endpoint + ESPN corroborate the starter-exit line. `pitch_type`, ER, and scoring-dependent fields are revision-tracked and provisional until finalization; exit summary may ship with `mix provisional`. See source table below. |
 | 7 | Reliever boundary | **Ingest always; warn once; allow on-demand.** Reliever requests get a one-time out-of-SP-scope warning, then are answered with the same tools. |
@@ -21,7 +21,7 @@ Decided 2026-09-30.
 | 9 | Exit notification | **Terminal prints final line + exit synthesis immediately** when source-complete. MCP (V2) exposes a resource and lets the host decide. |
 | 10 | Model backend | **Deferred** — separate discussion. No `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` in the dev environment as of this date. Core must run with no LLM (facts role is deterministic). |
 | 11 | Historical-cache refresh | **Full re-pull every pregame.** Current regular season + current postseason per starter, downloaded fresh at session start; cache is the fallback if Savant is unavailable. |
-| 12 | Persistence/privacy | **Local-only SQLite, keep forever, export/import in V1.** Raw observations kept indefinitely in `data/baseball.sqlite`; JSON session export/import ships in V1. |
+| 12 | Persistence/privacy | **Local-only SQLite; per-game analysis is disposable; export/import in V1.** A clear command deletes a game's observations, hypotheses (incl. frozen), and summaries; the same happens automatically 24 h after the game is first seen Final. Pitch data, revision history, and cross-game preferences are kept. Raw feed snapshots are pruned to the latest once the game is Final. *(Revised 2026-09-30; originally "keep forever".)* |
 
 ## Sources (V1)
 

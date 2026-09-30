@@ -3,8 +3,9 @@
 Restart recovery is a V1 requirement (decisions.md #5), so everything a live
 session needs to resume must be written here, not held only in memory.
 
-Local-only; raw observations are kept indefinitely. JSON session export/import
-is a V1 feature (decisions.md #12).
+Local-only. Per-game analysis (observations, hypotheses, summaries) is cleared on
+command or automatically 24 h after the game is first seen Final; raw snapshots are
+pruned to the latest once Final (decisions.md #12).
 """
 
 from __future__ import annotations
@@ -14,12 +15,15 @@ import sqlite3
 import zlib
 from collections.abc import Iterable
 from dataclasses import asdict
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 from pitching_agent.models import Half, Pitch, PlateAppearance
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
+
+ANALYSIS_TABLES = ("hypotheses", "observations", "summaries")  # delete order respects FKs
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -36,6 +40,8 @@ CREATE TABLE IF NOT EXISTS games (
     mode TEXT NOT NULL DEFAULT 'pregame',
     inning INTEGER,
     half TEXT,
+    final_seen_at TEXT,         -- first time ingestion saw status Final (starts the 24 h clock)
+    analysis_cleared_at TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -263,6 +269,57 @@ def load_snapshots(conn: sqlite3.Connection, game_id: int, source: str) -> list[
         (game_id, source),
     )
     return [(r["timecode"], json.loads(zlib.decompress(r["body"]))) for r in rows]
+
+
+def prune_snapshots(conn: sqlite3.Connection, game_id: int, source: str) -> int:
+    """Keep only the latest snapshot. The feed is cumulative and revisions live in
+    field_revisions, so older snapshots add nothing once the game is Final."""
+    cur = conn.execute(
+        "DELETE FROM raw_snapshots WHERE game_id = ? AND source = ? AND snapshot_id <"
+        " (SELECT MAX(snapshot_id) FROM raw_snapshots WHERE game_id = ? AND source = ?)",
+        (game_id, source, game_id, source),
+    )
+    return cur.rowcount
+
+
+# ---------------------------------------------------------------------------
+# Retention: per-game analysis is cleared on command or 24 h after Final
+# ---------------------------------------------------------------------------
+
+ANALYSIS_TTL = timedelta(hours=24)
+
+
+def clear_game_analysis(conn: sqlite3.Connection, game_id: int) -> dict[str, int]:
+    """Delete a game's observations, hypotheses (including frozen), and summaries.
+
+    Pitch data, snapshots, and cross-game preferences are kept.
+    """
+    with conn:
+        counts = {t: conn.execute(f"DELETE FROM {t} WHERE game_id = ?", (game_id,)).rowcount for t in ANALYSIS_TABLES}
+        conn.execute(
+            "UPDATE games SET analysis_cleared_at = CURRENT_TIMESTAMP WHERE game_id = ?",
+            (game_id,),
+        )
+    return counts
+
+
+def expired_games(conn: sqlite3.Connection, now: datetime | None = None, ttl: timedelta = ANALYSIS_TTL) -> list[int]:
+    now = now or datetime.now(timezone.utc)
+    cutoff = (now - ttl).strftime("%Y-%m-%d %H:%M:%S")  # SQLite CURRENT_TIMESTAMP format, UTC
+    rows = conn.execute(
+        "SELECT game_id FROM games WHERE final_seen_at IS NOT NULL AND final_seen_at <= ?"
+        " AND analysis_cleared_at IS NULL",
+        (cutoff,),
+    )
+    return [r["game_id"] for r in rows]
+
+
+def purge_expired(conn: sqlite3.Connection, now: datetime | None = None, ttl: timedelta = ANALYSIS_TTL) -> list[int]:
+    """Automatic clear for games Final longer than `ttl`. Returns the cleared game ids."""
+    games = expired_games(conn, now, ttl)
+    for game_id in games:
+        clear_game_analysis(conn, game_id)
+    return games
 
 
 # ---------------------------------------------------------------------------
