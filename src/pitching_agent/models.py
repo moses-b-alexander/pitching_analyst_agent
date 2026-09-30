@@ -85,10 +85,29 @@ class Pitch:
     sz_bot: float | None = None
     pfx_x: float | None = None
     pfx_z: float | None = None
+    spin_rate: float | None = None
     launch_speed: float | None = None
     launch_angle: float | None = None
     timestamp: datetime | None = None
+    play_id: str | None = None
     source_revision: int = 0
+
+
+@dataclass
+class PlateAppearance:
+    game_id: int
+    at_bat_index: int
+    inning: int
+    half: Half
+    pitcher_id: int
+    batter_id: int
+    bat_side: str
+    is_complete: bool
+    event_type: str | None
+    outs_on_play: int = 0
+    hit_code: str | None = None  # Retrosheet-style, e.g. S8, D9, HR
+    # (responsible pitcher id, earned) for each run that scored on this play
+    runs: list[tuple[int, bool]] = field(default_factory=list)
 
 
 @dataclass

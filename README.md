@@ -114,8 +114,8 @@ python agent.py --game <gamePk>
 This project is in early development. The build order is:
 
 ```text
-1. Reliable live ingestion          ← next
-2. Normalized event state
+1. Reliable live ingestion          (MLB normalize + store + replay done; poll loop next)
+2. Normalized event state           ← next
 3. Deterministic factual capsule    (compositor done)
 4. Pitcher-specific state / inning windows
 5. Observation capture
