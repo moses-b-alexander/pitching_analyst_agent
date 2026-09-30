@@ -29,5 +29,5 @@ output:
 
 sources:
   primary_live: mlb_live
-  corroborate: [mlb_stats, espn]
+  corroborate: [mlb_stats]
   historical: savant_csv

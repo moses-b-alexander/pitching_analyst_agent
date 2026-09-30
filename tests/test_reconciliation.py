@@ -7,7 +7,7 @@ FULL = PitcherLine(outs=14, pitches=83, strikes=58, hits=5, runs=1, earned_runs=
 
 
 def test_complete_line_finalizes():
-    r = evaluate_gate(FULL, {"espn": FULL}, inherited_runners_on_base=False)
+    r = evaluate_gate(FULL, {"mlb_boxscore": FULL}, inherited_runners_on_base=False)
     assert r.state is StarterState.FINALIZED
     assert r.conflicts == {}
 
@@ -25,11 +25,11 @@ def test_inherited_runners_hold_finalization():
     assert r.state is StarterState.AWAITING_INHERITED
 
 
-def test_secondary_disagreement_reported_but_primary_wins():
-    espn = PitcherLine(pitches=84, strikes=58)
-    r = evaluate_gate(FULL, {"espn": espn, "mlb_stats": None}, inherited_runners_on_base=False)
+def test_boxscore_disagreement_reported_but_live_feed_wins():
+    box = PitcherLine(pitches=84, strikes=58)
+    r = evaluate_gate(FULL, {"mlb_boxscore": box, "savant_gf": None}, inherited_runners_on_base=False)
     assert r.state is StarterState.FINALIZED
-    assert r.conflicts == {"espn": ["pitches"]}
+    assert r.conflicts == {"mlb_boxscore": ["pitches"]}
 
 
 def test_binomial_result_shape():

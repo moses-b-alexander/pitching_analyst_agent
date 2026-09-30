@@ -50,7 +50,7 @@ The products are the same as in the plugin:
 ## Architecture
 
 ```text
-DATA SOURCES          MLB Stats API (live) · Baseball Savant (historical) · ESPN (corroboration)
+DATA SOURCES          MLB Stats API (live) · Baseball Savant (historical)
     ↓
 SOURCE ADAPTERS       src/pitching_agent/sources/
     ↓
@@ -99,7 +99,7 @@ python agent.py --game <gamePk> --once
 │       └── SKILL.md         canonical spec (mirrored from plugin)
 ├── src/pitching_agent/
 │   ├── config.py  models.py  state.py  events.py  store.py  compositor.py
-│   ├── sources/   base · mlb · savant · secondary
+│   ├── sources/   base · mlb · savant
 │   ├── analytics/ features · windows · stat_tests · transitions · trajectories
 │   ├── llm/       base · anthropic · openai · prompts
 │   ├── services/  ingestion · reconciliation · hypothesis · analyst
