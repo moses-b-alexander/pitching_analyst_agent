@@ -11,3 +11,8 @@ data/*.sqlite
 data/*.sqlite-*
 data/cache/*
 !data/cache/.gitkeep
+
+# MLBAM data is licensed for individual, non-bulk use only; never redistribute it.
+# Fetch locally with: python scripts/fetch_fixtures.py
+tests/fixtures/*
+!tests/fixtures/.gitkeep

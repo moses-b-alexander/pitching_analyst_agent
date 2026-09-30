@@ -12,8 +12,15 @@ DEGROM, RYAN = 594798, 657746
 MID_EXIT_TIMECODE = "20260926_014558"  # ~90 s after deGrom removed, B5, PA in progress
 
 
+def _require(name: str) -> Path:
+    path = FIXTURES / name
+    if not path.exists():
+        pytest.skip(f"{name} missing; run: python scripts/fetch_fixtures.py")
+    return path
+
+
 def load_json_gz(name: str):
-    with gzip.open(FIXTURES / name, "rt", encoding="utf-8") as f:
+    with gzip.open(_require(name), "rt", encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -34,4 +41,4 @@ def boxscore():
 
 @pytest.fixture(scope="session")
 def savant_ryan():
-    return pd.read_csv(FIXTURES / f"savant_{GAME}_{RYAN}.csv.gz")
+    return pd.read_csv(_require(f"savant_{GAME}_{RYAN}.csv.gz"))

@@ -76,8 +76,9 @@ The baseball data service stays useful without any LLM.
 
 ```bash
 pip install -e ".[dev]"
+python scripts/fetch_fixtures.py   # test data (MLB-licensed; not committed)
 pytest
-python agent.py --game <gamePk>
+python agent.py --game <gamePk> --once
 ```
 
 ---
@@ -103,6 +104,8 @@ python agent.py --game <gamePk>
 │   ├── llm/       base · anthropic · openai · prompts
 │   ├── services/  ingestion · reconciliation · hypothesis · analyst
 │   └── mcp/       tools
+├── scripts/
+│   └── fetch_fixtures.py    downloads test data locally
 ├── tests/
 └── data/cache/
 ```
@@ -134,4 +137,12 @@ This project is in early development. The build order is:
 
 ## License
 
-MIT License. See [`LICENSE`](LICENSE).
+[PolyForm Noncommercial 1.0.0](LICENSE). The source is public and free for personal, research, educational, and other noncommercial use; commercial use is not permitted.
+
+This is a *source-available* license, not an OSI "open source" license (OSI definitions forbid restricting commercial use).
+
+`skills/live-starting-pitching-analyst/SKILL.md` is mirrored from the [plugin repository](https://github.com/moses-b-alexander/live-pitching-analyst-chatgpt-plugin), where it is published under the MIT License.
+
+## Data
+
+MLB and Baseball Savant data are © MLB Advanced Media, L.P. and licensed only for [individual, non-commercial, non-bulk use](http://gdx.mlb.com/components/copyright.txt). This repository contains no MLB data. The agent fetches it locally at runtime, and test fixtures are downloaded with `python scripts/fetch_fixtures.py` (gitignored).
