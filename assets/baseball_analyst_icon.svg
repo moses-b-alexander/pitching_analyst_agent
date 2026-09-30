@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Baseball icon</title>
+  <desc id="desc">A simple baseball with red stitching on a transparent background.</desc>
+  <circle cx="256" cy="256" r="210" fill="#f6f6f2" stroke="#1e1e1e" stroke-width="18"/>
+  <path d="M150 105 C95 210,110 330,185 410" fill="none" stroke="#912a2a" stroke-width="12" stroke-linecap="round"/>
+  <path d="M362 102 C420 205,404 328,330 412" fill="none" stroke="#912a2a" stroke-width="12" stroke-linecap="round"/>
+  <g stroke="#912a2a" stroke-width="8" stroke-linecap="round">
+    <line x1="126" y1="143" x2="160" y2="151"/>
+    <line x1="114" y1="184" x2="149" y2="191"/>
+    <line x1="108" y1="226" x2="144" y2="230"/>
+    <line x1="109" y1="269" x2="145" y2="269"/>
+    <line x1="116" y1="312" x2="151" y2="307"/>
+    <line x1="130" y1="351" x2="164" y2="340"/>
+    <line x1="151" y1="387" x2="183" y2="371"/>
+    <line x1="351" y1="143" x2="386" y2="136"/>
+    <line x1="363" y1="184" x2="398" y2="177"/>
+    <line x1="368" y1="226" x2="404" y2="222"/>
+    <line x1="367" y1="269" x2="403" y2="269"/>
+    <line x1="360" y1="311" x2="395" y2="317"/>
+    <line x1="347" y1="351" x2="380" y2="363"/>
+    <line x1="327" y1="387" x2="358" y2="404"/>
+  </g>
+</svg>

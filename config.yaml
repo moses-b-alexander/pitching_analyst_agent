@@ -1,0 +1,33 @@
+# Live pitching agent configuration. See docs/decisions.md for rationale.
+
+db_path: data/baseball.sqlite
+cache_dir: data/cache
+
+# Model roles. "deterministic" means no LLM. exec/stats are unset until the
+# backend decision is made; the agent runs facts-only until then.
+models:
+  exec: null
+  facts: deterministic
+  stats: null
+
+providers: {}
+  # anthropic:
+  #   api_key_env: ANTHROPIC_API_KEY
+  # openai:
+  #   api_key_env: OPENAI_API_KEY
+  # local:
+  #   base_url_env: LOCAL_LLM_BASE_URL
+
+polling:
+  live_interval_s: 15          # live feed poll
+  exit_reconcile_interval_s: 600
+  exit_give_up_after_game_end_s: 7200
+
+output:
+  half_inning: capsule_only    # capsule_only | capsule_and_exec | silent
+  starter_exit: print_immediately
+
+sources:
+  primary_live: mlb_live
+  corroborate: [mlb_stats, espn]
+  historical: savant_csv
