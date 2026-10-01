@@ -16,6 +16,7 @@ class LLMConfig:
     base_url: str
     model: str | None  # None: no model configured; the agent runs facts-only
     api_key_env: str | None = None
+    reasoning_effort: str | None = None  # sent as-is when set; "none" disables thinking
 
 
 @dataclass
@@ -36,6 +37,7 @@ def load_config(path: str | Path = "config.yaml") -> Config:
             base_url=llm.get("base_url", "http://localhost:11434/v1"),
             model=llm.get("model"),
             api_key_env=llm.get("api_key_env"),
+            reasoning_effort=llm.get("reasoning_effort"),
         ),
         raw=data,
     )
