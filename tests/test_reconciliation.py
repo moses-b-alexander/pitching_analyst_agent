@@ -43,3 +43,14 @@ def test_binomial_result_shape():
     assert round(r.effect, 3) == round(11 / 13 - 0.612, 3)
     assert 0 < r.p_value < 1
     assert r.ci[0] < r.estimate < r.ci[1]
+
+
+def test_alpha_defaults_to_05_and_sets_ci_width():
+    r = binomial_vs_baseline(11, 13, 0.612, inference_type=InferenceType.EXPLORATORY)
+    assert r.alpha == 0.05
+    assert r.significant is False  # two-sided p = .095
+    assert binomial_vs_baseline(12, 13, 0.612, inference_type=InferenceType.EXPLORATORY).significant is True
+
+    strict = binomial_vs_baseline(11, 13, 0.612, alpha=0.01, inference_type=InferenceType.EXPLORATORY)
+    assert strict.p_value == r.p_value
+    assert strict.ci[0] < r.ci[0] and strict.ci[1] > r.ci[1]  # 99% interval is wider than 95%

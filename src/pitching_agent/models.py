@@ -109,3 +109,9 @@ class TestResult:
     method: str
     inference_type: InferenceType
     conditioning: dict[str, Any] = field(default_factory=dict)
+    alpha: float = 0.05
+
+    @property
+    def significant(self) -> bool | None:
+        """p < alpha. A label only: always report n, baseline, and effect alongside it (SKILL.md §2)."""
+        return None if self.p_value is None else bool(self.p_value < self.alpha)

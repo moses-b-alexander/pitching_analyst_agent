@@ -11,6 +11,9 @@ llm:
   reasoning_effort: none         # skip hidden thinking: ~1 s per call instead of ~12 s; null to allow it
   api_key_env: null            # e.g. GROQ_API_KEY for a hosted open-weight provider
 
+stats:
+  alpha: 0.05                    # significance level; CIs are (1 - alpha)
+
 polling:
   live_interval_s: 15            # feed suggests >= 10 s (metaData.wait)
   exit_reconcile_interval_s: 600

@@ -24,6 +24,7 @@ class Config:
     db_path: Path
     cache_dir: Path
     llm: LLMConfig
+    alpha: float = 0.05
     raw: dict[str, Any] = field(default_factory=dict)
 
 
@@ -39,5 +40,6 @@ def load_config(path: str | Path = "config.yaml") -> Config:
             api_key_env=llm.get("api_key_env"),
             reasoning_effort=llm.get("reasoning_effort"),
         ),
+        alpha=float((data.get("stats") or {}).get("alpha", 0.05)),
         raw=data,
     )
