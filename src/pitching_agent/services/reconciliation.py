@@ -1,7 +1,9 @@
 """Starter-exit completeness gate (architecture §5, SKILL.md §8).
 
-Policy (decisions.md #6): the MLB live feed is authoritative. Corroborating sources can
-confirm but never override it. A disagreement is reported so it can be surfaced, not voted on.
+Policy (decisions.md #6): the line computed from the MLB feed's plays is what gets printed.
+The feed's boxscore is a second representation of the same game; while the two disagree
+the line is not source-complete, so finalization waits. A missing corroborating line
+(None) does not block.
 """
 
 from __future__ import annotations
@@ -58,6 +60,6 @@ def evaluate_gate(
     # Pitch count / mix and completed outcomes can freeze; R/ER wait on inherited runners.
     if inherited_runners_on_base:
         return GateResult(StarterState.AWAITING_INHERITED, missing, conflicts)
-    if missing:
+    if missing or conflicts:
         return GateResult(StarterState.RECONCILING, missing, conflicts)
     return GateResult(StarterState.FINALIZED, missing, conflicts)

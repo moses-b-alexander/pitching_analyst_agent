@@ -296,3 +296,40 @@ def box_line(box: dict[str, Any], pitcher_id: int) -> PitcherLine | None:
                 batters_faced=s.get("battersFaced"),
             )
     return None
+
+
+def truncate_feed(feed: dict[str, Any], n_plays: int) -> dict[str, Any]:
+    """The feed as it would have looked after its first `n_plays` plays (offline replay and tests).
+
+    Game state is rebuilt from the last kept play. The boxscore is cleared because it
+    cannot be rewound, so replayed states carry no corroborating line.
+    """
+    plays = feed["liveData"]["plays"]["allPlays"]
+    if n_plays >= len(plays):
+        return feed
+    kept = plays[:n_plays]
+    box = feed["liveData"]["boxscore"]
+    linescore: dict[str, Any] = {}
+    if kept:
+        about = kept[-1]["about"]
+        linescore = {"currentInning": about["inning"], "inningHalf": about["halfInning"].capitalize()}
+    return {
+        **feed,
+        "metaData": {**feed.get("metaData", {}), "timeStamp": f"replay_{n_plays:04d}", "wait": 0},
+        "gameData": {
+            **feed["gameData"],
+            "status": {
+                "abstractGameState": "Live" if kept else "Preview",
+                "detailedState": "In Progress" if kept else "Pre-Game",
+            },
+        },
+        "liveData": {
+            **feed["liveData"],
+            "plays": {**feed["liveData"]["plays"], "allPlays": kept},
+            "linescore": linescore,
+            "boxscore": {
+                **box,
+                "teams": {s: {**box["teams"][s], "players": {}, "pitchers": []} for s in ("away", "home")},
+            },
+        },
+    }

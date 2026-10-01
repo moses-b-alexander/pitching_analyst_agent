@@ -25,11 +25,16 @@ def test_inherited_runners_hold_finalization():
     assert r.state is StarterState.AWAITING_INHERITED
 
 
-def test_boxscore_disagreement_reported_but_live_feed_wins():
+def test_boxscore_disagreement_holds_finalization():
     box = PitcherLine(pitches=84, strikes=58)
-    r = evaluate_gate(FULL, {"mlb_boxscore": box, "savant_gf": None}, inherited_runners_on_base=False)
-    assert r.state is StarterState.FINALIZED
+    r = evaluate_gate(FULL, {"mlb_boxscore": box}, inherited_runners_on_base=False)
+    assert r.state is StarterState.RECONCILING
     assert r.conflicts == {"mlb_boxscore": ["pitches"]}
+
+
+def test_missing_corroboration_does_not_block():
+    r = evaluate_gate(FULL, {"mlb_boxscore": None}, inherited_runners_on_base=False)
+    assert r.state is StarterState.FINALIZED
 
 
 def test_binomial_result_shape():

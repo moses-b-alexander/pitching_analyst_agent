@@ -13,6 +13,8 @@ from pitching_agent import __version__  # noqa: E402
 from pitching_agent.analytics.lines import window_hits, window_line, window_mix  # noqa: E402
 from pitching_agent.compositor import capsule  # noqa: E402
 from pitching_agent.config import load_config  # noqa: E402
+from pitching_agent.services.live import ReplaySource, run_live  # noqa: E402
+from pitching_agent.services.tracker import GameTracker, Output  # noqa: E402
 from pitching_agent.sources import mlb  # noqa: E402
 from pitching_agent.store import clear_game, connect, init_db, purge_expired, touch_game  # noqa: E402
 
@@ -36,11 +38,64 @@ async def snapshot(conn, game_id: int) -> None:
         print(capsule(window_line(pitches, pas, pid), window_mix(pitches, pid), window_hits(pas, pid), include_ip=True))
 
 
+async def live(conn, cfg, game_id: int, replay_delay: float | None) -> None:
+    """Follow a game until both starters' lines are final. With replay_delay, replay a finished game offline."""
+    polling, output = cfg.raw.get("polling", {}), cfg.raw.get("output", {})
+    tracker = GameTracker(
+        lag=int(output.get("half_inning_lag", 1)),
+        capsules=output.get("half_inning", "capsule_only") != "silent",
+    )
+
+    def emit(out: Output) -> None:
+        print(f"\n{out.text}", flush=True)
+
+    def on_feed(feed) -> None:
+        info = tracker.info
+        touch_game(conn, info.game_id, info.date, is_final=info.status == "Final")
+
+    adapter = mlb.MLBStatsAdapter()
+    try:
+        if replay_delay is None:
+            source, interval = adapter, float(polling.get("live_interval_s", 15))
+        else:
+            source, interval = ReplaySource(await adapter.live_feed(game_id)), replay_delay
+        await run_live(
+            source,
+            game_id,
+            tracker,
+            emit,
+            interval=interval,
+            reconcile_interval=float(polling.get("exit_reconcile_interval_s", 600)),
+            give_up_after=float(polling.get("exit_give_up_after_game_end_s", 7200)),
+            on_feed=on_feed if replay_delay is None else None,
+            **({"sleep": _replay_sleep(replay_delay)} if replay_delay is not None else {}),
+        )
+    finally:
+        await adapter.aclose()
+
+
+def _replay_sleep(delay: float):
+    async def sleep(_seconds: float) -> None:
+        await asyncio.sleep(delay)  # fixed pace; ignore the loop's pregame / reconcile waits
+
+    return sleep
+
+
 def main(argv: list[str] | None = None) -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")  # stat lines use "·"; Windows consoles default to cp1252
     parser = argparse.ArgumentParser(description="Live starting-pitching analyst")
     parser.add_argument("--game", type=int, help="MLB gamePk")
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--once", action="store_true", help="fetch once and print starter lines")
+    parser.add_argument(
+        "--replay",
+        type=float,
+        nargs="?",
+        const=0.2,
+        metavar="SECONDS_PER_PLAY",
+        help="replay a finished game offline, one play per tick (default 0.2 s)",
+    )
     parser.add_argument("--clear-game", type=int, metavar="GAMEPK", help="delete a game's saved observations")
     parser.add_argument("--version", action="version", version=__version__)
     args = parser.parse_args(argv)
@@ -62,7 +117,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.once:
         asyncio.run(snapshot(conn, args.game))
         return 0
-    print(f"Game {args.game}: live loop not yet implemented; use --once.")
+    try:
+        asyncio.run(live(conn, cfg, args.game, args.replay))
+    except KeyboardInterrupt:
+        print("\nStopped.")
     return 0
 
 

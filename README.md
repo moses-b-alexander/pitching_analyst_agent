@@ -77,7 +77,9 @@ The stat lines work with no model configured.
 pip install -e ".[dev]"
 python scripts/fetch_fixtures.py   # test data (MLB-licensed; not committed)
 pytest
-python agent.py --game <gamePk> --once
+python agent.py --game <gamePk>            # follow a game live
+python agent.py --game <gamePk> --replay   # replay a finished game offline, play by play
+python agent.py --game <gamePk> --once     # one snapshot of both starters' lines
 ```
 
 For model interpretation (optional; stat lines work without it), install [Ollama](https://ollama.com) and run:
@@ -106,8 +108,8 @@ ollama create qwen3:8b-8k -f ollama/Modelfile   # same weights, 8,192-token cont
 │   ├── config.py  models.py  state.py  store.py  compositor.py
 │   ├── sources/   mlb · savant
 │   ├── analytics/ features · windows · lines · stat_tests
-│   ├── llm/       prompts
-│   └── services/  reconciliation · hypothesis
+│   ├── llm/       client · prompts
+│   └── services/  tracker · live · reconciliation · hypothesis
 ├── scripts/
 │   └── fetch_fixtures.py    downloads test data locally
 ├── tests/
@@ -124,9 +126,11 @@ Early development.
 Done   MLB live feed -> pitches / plate appearances / box lines (matches box score and Savant)
 Done   Three deterministic stat lines; inning windows; exit completeness check
 Done   Observation store (by team / starter), clear command, 24 h auto-clear
-Next   Polling loop: half-inning capsules, starter-exit detection
+Done   Polling loop: half-inning capsules (half-inning lag), starter-exit detection and verified final line,
+       backoff on feed failure, offline replay
+Done   Model client (local Ollama, qwen3:8b) and observation classifier
+Next   Chat input: type an observation, save it, classify it
        Savant season download + pregame lines
-       Model adapter (Ollama), condensed prompt, chat input
        Barebones stat-test menu
 ```
 
