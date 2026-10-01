@@ -44,9 +44,15 @@ class StarterTrack:
     state: StarterState = StarterState.ACTIVE
     exit_index: int | None = None  # half-inning index where the replacement first appeared
 
+    team_name: str = ""
+
     @property
     def label(self) -> str:
         return self.name.split()[-1].upper()
+
+    @property
+    def exited(self) -> bool:
+        return self.state is not StarterState.ACTIVE
 
 
 def half_index(inning: int, half: Half) -> int:
@@ -72,6 +78,7 @@ class GameTracker:
         self._announced_waiting = False
         self._pitches: list[Pitch] = []
         self._pas: list[PlateAppearance] = []
+        self._names: dict[int, dict[str, Any]] = {}
 
     # -- public state -------------------------------------------------------
 
@@ -88,6 +95,24 @@ class GameTracker:
         """Game over and every starter's line is closed out."""
         return self.is_final and all(s.state in CLOSED_STATES for s in self.starters.values())
 
+    def candidates(self) -> list[StarterTrack]:
+        """The starters an observation can be about: actual starters, else the probables before first pitch."""
+        found = []
+        for side in ("away", "home"):
+            if side in self.starters:
+                found.append(self.starters[side])
+            elif self.info is not None:
+                pid = self.info.probable_away if side == "away" else self.info.probable_home
+                if pid is not None:
+                    team = getattr(self.info, side)
+                    name = self._names.get(pid, {}).get("fullName", str(pid))
+                    found.append(StarterTrack(pid, name, team.abbrev, side, team_name=team.name))
+        return found
+
+    def innings_pitched_in(self, s: StarterTrack) -> int:
+        """Highest inning number in which this starter has thrown a pitch (0 if none)."""
+        return max((p.inning for p in self._pitches if p.pitcher_id == s.pitcher_id), default=0)
+
     def starter_capsule(self, s: StarterTrack, *, provisional: bool = False) -> str:
         return capsule(
             window_line(self._pitches, self._pas, s.pitcher_id),
@@ -102,7 +127,7 @@ class GameTracker:
     def update(self, feed: dict[str, Any]) -> list[Output]:
         self.info = info = mlb.game_info(feed)
         self._pitches, self._pas = mlb.normalize(feed)
-        names = {int(k[2:]): v for k, v in feed["gameData"].get("players", {}).items()}
+        self._names = names = {int(k[2:]): v for k, v in feed["gameData"].get("players", {}).items()}
         out: list[Output] = []
 
         if not self._pas:
@@ -116,8 +141,9 @@ class GameTracker:
             side = _fielding_side(pa.half)
             if side not in self.starters:
                 person = names.get(pa.pitcher_id, {})
+                team = getattr(info, side)
                 self.starters[side] = StarterTrack(
-                    pa.pitcher_id, person.get("fullName", str(pa.pitcher_id)), getattr(info, side).abbrev, side
+                    pa.pitcher_id, person.get("fullName", str(pa.pitcher_id)), team.abbrev, side, team_name=team.name
                 )
 
         outs: dict[int, int] = {}

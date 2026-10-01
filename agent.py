@@ -13,6 +13,8 @@ from pitching_agent import __version__  # noqa: E402
 from pitching_agent.analytics.lines import window_hits, window_line, window_mix  # noqa: E402
 from pitching_agent.compositor import capsule  # noqa: E402
 from pitching_agent.config import load_config  # noqa: E402
+from pitching_agent.llm.client import LLMClient  # noqa: E402
+from pitching_agent.services.chat import Chat  # noqa: E402
 from pitching_agent.services.live import ReplaySource, run_live  # noqa: E402
 from pitching_agent.services.tracker import GameTracker, Output  # noqa: E402
 from pitching_agent.sources import mlb  # noqa: E402
@@ -54,24 +56,54 @@ async def live(conn, cfg, game_id: int, replay_delay: float | None) -> None:
         touch_game(conn, info.game_id, info.date, is_final=info.status == "Final")
 
     adapter = mlb.MLBStatsAdapter()
+    llm = LLMClient(cfg.llm) if cfg.llm.model else None
+    chat = Chat(tracker, conn, llm)
     try:
         if replay_delay is None:
             source, interval = adapter, float(polling.get("live_interval_s", 15))
         else:
             source, interval = ReplaySource(await adapter.live_feed(game_id)), replay_delay
-        await run_live(
-            source,
-            game_id,
-            tracker,
-            emit,
-            interval=interval,
-            reconcile_interval=float(polling.get("exit_reconcile_interval_s", 600)),
-            give_up_after=float(polling.get("exit_give_up_after_game_end_s", 7200)),
-            on_feed=on_feed if replay_delay is None else None,
-            **({"sleep": _replay_sleep(replay_delay)} if replay_delay is not None else {}),
+        polling_task = asyncio.create_task(
+            run_live(
+                source,
+                game_id,
+                tracker,
+                emit,
+                interval=interval,
+                reconcile_interval=float(polling.get("exit_reconcile_interval_s", 600)),
+                give_up_after=float(polling.get("exit_give_up_after_game_end_s", 7200)),
+                on_feed=on_feed if replay_delay is None else None,
+                **({"sleep": _replay_sleep(replay_delay)} if replay_delay is not None else {}),
+            )
         )
+        chat_task = asyncio.create_task(chat_loop(chat))
+        await asyncio.wait({polling_task, chat_task}, return_when=asyncio.FIRST_COMPLETED)
+        if chat_task.done() and chat_task.result() == "quit":
+            polling_task.cancel()
+        elif chat_task.done():
+            await polling_task  # stdin closed (not a terminal): just follow the game
+        else:
+            polling_task.result()  # surface any error
+            print("\nBoth starters are final. Keep chatting, or /quit.", flush=True)
+            await chat_task
     finally:
         await adapter.aclose()
+        if llm:
+            await llm.aclose()
+
+
+async def chat_loop(chat: Chat) -> str:
+    """Read typed lines without blocking the polling loop. Returns "quit" or "eof"."""
+    loop = asyncio.get_running_loop()
+    while True:
+        line = await loop.run_in_executor(None, sys.stdin.readline)
+        if not line:
+            return "eof"
+        if line.strip().lower() in ("/quit", "quit", "exit"):
+            return "quit"
+        reply = await chat.handle(line)
+        if reply:
+            print(f"\n> {line.strip()}\n{reply}", flush=True)
 
 
 def _replay_sleep(delay: float):

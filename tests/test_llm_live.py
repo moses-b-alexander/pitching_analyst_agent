@@ -20,6 +20,7 @@ PROBES = {
     "curve is buried way more": "location_spatial",
     "he's lost a couple ticks since the 3rd": "fatigue_trend",
     "way more sweepers than normal": "usage_proportion",
+    "ryan is throwing a ton of sweepers": "usage_proportion",
     "his splitter has more drop tonight": "continuous_shape",
     "only throwing the change to lefties": "matchup_interaction",
     "they look late on the heater": "hitter_response",
@@ -47,3 +48,5 @@ def test_classifies_unseen_observations():
     wrong = {t: r["primary_class"] for t, r in results.items() if r["primary_class"] != PROBES[t]}
     assert all(r["metric"] in METRICS for r in results.values())
     assert len(wrong) <= 1, wrong  # small models are allowed one miss
+    for text in ("way more sweepers than normal", "ryan is throwing a ton of sweepers"):
+        assert results[text]["metric"] == "usage_share", (text, results[text])

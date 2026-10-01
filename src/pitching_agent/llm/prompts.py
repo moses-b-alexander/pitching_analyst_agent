@@ -70,6 +70,7 @@ metric is what to measure. Use "none" if nothing on the list fits.
 Examples:
 "his curve looks way lower tonight" -> location_spatial, proportion_vs_baseline, CU, share_below_zone
 "his velo looks cooked" -> fatigue_trend, trend, FF, release_speed
+"way more sliders than usual" -> usage_proportion, proportion_vs_baseline, SL, usage_share
 "slider is flatter than usual" -> continuous_shape, mean_shift, SL, horizontal_break
 "fastball is leaking middle" -> command_precision, proportion_vs_baseline, FF, share_heart_of_zone
 "he keeps going sinker after 4s" -> sequence_transition, proportion_vs_baseline, SI, share_after_previous_pitch_type

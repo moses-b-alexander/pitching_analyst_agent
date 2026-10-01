@@ -109,7 +109,7 @@ ollama create qwen3:8b-8k -f ollama/Modelfile   # same weights, 8,192-token cont
 │   ├── sources/   mlb · savant
 │   ├── analytics/ features · windows · lines · stat_tests
 │   ├── llm/       client · prompts
-│   └── services/  tracker · live · reconciliation · hypothesis
+│   └── services/  tracker · live · chat · reconciliation · hypothesis
 ├── scripts/
 │   └── fetch_fixtures.py    downloads test data locally
 ├── tests/
@@ -129,8 +129,9 @@ Done   Observation store (by team / starter), clear command, 24 h auto-clear
 Done   Polling loop: half-inning capsules (half-inning lag), starter-exit detection and verified final line,
        backoff on feed failure, offline replay
 Done   Model client (local Ollama, qwen3:8b) and observation classifier
-Next   Chat input: type an observation, save it, classify it
-       Savant season download + pregame lines
+Done   Chat input while the game runs: name a starter or team, the observation is saved,
+       classified, and answered; /status, /obs, /clear, /quit
+Next   Savant season download + pregame lines
        Barebones stat-test menu
 ```
 
