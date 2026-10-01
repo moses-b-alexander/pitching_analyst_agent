@@ -1,0 +1,7 @@
+# qwen3:8b with an 8,192-token context window (Ollama's default load is 4,096).
+# Shares weights with qwen3:8b; no extra download.
+#
+#   ollama pull qwen3:8b
+#   ollama create qwen3:8b-8k -f ollama/Modelfile
+FROM qwen3:8b
+PARAMETER num_ctx 8192

@@ -7,7 +7,7 @@ cache_dir: data/cache            # Savant season pulls
 # model: null runs facts-only (stat lines still work without any model).
 llm:
   base_url: http://localhost:11434/v1
-  model: qwen3:8b                # pulled with: ollama pull qwen3:8b
+  model: qwen3:8b-8k             # qwen3:8b with an 8,192-token window; see ollama/Modelfile
   reasoning_effort: none         # skip hidden thinking: ~1 s per call instead of ~12 s; null to allow it
   api_key_env: null            # e.g. GROQ_API_KEY for a hosted open-weight provider
 

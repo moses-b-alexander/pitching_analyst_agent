@@ -80,6 +80,13 @@ pytest
 python agent.py --game <gamePk> --once
 ```
 
+For model interpretation (optional; stat lines work without it), install [Ollama](https://ollama.com) and run:
+
+```bash
+ollama pull qwen3:8b
+ollama create qwen3:8b-8k -f ollama/Modelfile   # same weights, 8,192-token context
+```
+
 ---
 
 ## Repository layout
