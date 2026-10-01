@@ -40,6 +40,44 @@ def match_games(games: list[dict[str, Any]], query: str) -> list[dict[str, Any]]
     return [g for n, g in scored if n == best] if best else []
 
 
+def named_teams(teams: list[dict[str, Any]], query: str) -> tuple[list[dict[str, Any]], bool]:
+    """Which teams the query names, and whether that is ambiguous.
+
+    "rangers twins" names two teams (different words point at each). "chicago" or "sox"
+    is one word that fits two teams: ambiguous, so the caller asks instead of guessing.
+    """
+    words = [w for w in tokens(query) if w not in _FILLER]
+    scored = [(_team_score(t, words), t) for t in teams]
+    best = max((n for n, _ in scored), default=0)
+    if not best:
+        return [], False
+    found = [t for n, t in scored if n == best]
+    if len(found) == 1:
+        return found, False
+    evidence = [frozenset(set(words) & team_keys(t)) for t in found]
+    distinct = len(found) == 2 and not (evidence[0] & evidence[1])
+    return found, not distinct
+
+
+_NOT_PLAYED = {"Postponed", "Cancelled", "Suspended"}
+
+
+def latest_played(games: list[dict[str, Any]], opponent_id: int | None = None) -> dict[str, Any] | None:
+    """The most recent game that is in progress or was actually played, optionally against one opponent."""
+
+    def played(g: dict[str, Any]) -> bool:
+        status = g["status"]
+        if status["abstractGameState"] == "Live":
+            return True
+        return status["abstractGameState"] == "Final" and status["detailedState"] not in _NOT_PLAYED
+
+    def involves(g: dict[str, Any]) -> bool:
+        return opponent_id is None or opponent_id in (g["teams"]["away"]["team"]["id"], g["teams"]["home"]["team"]["id"])
+
+    eligible = [g for g in games if played(g) and involves(g)]
+    return max(eligible, key=lambda g: g["gameDate"], default=None)
+
+
 def pick(matches: list[dict[str, Any]]) -> dict[str, Any] | None:
     """The one game to follow, or None if the matches are ambiguous.
 

@@ -53,6 +53,21 @@ class MLBStatsAdapter:
         )
         return [g for d in data.get("dates", []) for g in d.get("games", [])]
 
+    async def teams(self, season: int) -> list[dict[str, Any]]:
+        return (await self._get("/api/v1/teams", sportId=1, season=season))["teams"]
+
+    async def team_games(self, team_id: int, start: date, end: date) -> list[dict[str, Any]]:
+        """One team's schedule over a date range, oldest first."""
+        data = await self._get(
+            "/api/v1/schedule",
+            sportId=1,
+            teamId=team_id,
+            startDate=start.isoformat(),
+            endDate=end.isoformat(),
+            hydrate="probablePitcher,team",
+        )
+        return [g for d in data.get("dates", []) for g in d.get("games", [])]
+
     async def live_feed(self, game_id: int, timecode: str | None = None) -> dict[str, Any]:
         """Full GUMBO feed; `timecode` (YYYYMMDD_HHMMSS) fetches a historical snapshot for replay."""
         params = {"timecode": timecode} if timecode else {}

@@ -20,7 +20,7 @@ from pitching_agent.llm.client import LLMClient  # noqa: E402
 from pitching_agent.services.chat import Chat  # noqa: E402
 from pitching_agent.services.live import ReplaySource, run_live  # noqa: E402
 from pitching_agent.services.pregame import Baselines  # noqa: E402
-from pitching_agent.services.resolve import describe, match_games, pick  # noqa: E402
+from pitching_agent.services.resolve import describe, latest_played, match_games, named_teams, pick  # noqa: E402
 from pitching_agent.sources.savant import SavantAdapter  # noqa: E402
 from pitching_agent.services.tracker import GameTracker, Output  # noqa: E402
 from pitching_agent.sources import mlb  # noqa: E402
@@ -170,6 +170,32 @@ async def find_game(teams: list[str], on: date | None) -> int | None:
         await adapter.aclose()
 
 
+async def find_latest(teams: list[str], on: date | None) -> int | None:
+    """Resolve a team (or two) to the most recent game it actually played, on or before `on`."""
+    end = on or date.today()
+    adapter = mlb.MLBStatsAdapter()
+    try:
+        found, ambiguous = named_teams(await adapter.teams(end.year), " ".join(teams))
+        if not found:
+            print(f"No team fits {' '.join(teams)!r}.")
+            return None
+        if ambiguous or len(found) > 2:
+            print("Which team: " + " or ".join(t["name"] for t in found) + "?")
+            return None
+        opponent = found[1]["id"] if len(found) == 2 else None
+        for days_back in (21, 365):  # a recent window first; it is a much smaller request
+            games = await adapter.team_games(found[0]["id"], end - timedelta(days=days_back), end)
+            game = latest_played(games, opponent)
+            if game:
+                print(f"Following ({game['officialDate']}): {describe(game)}")
+                return game["gamePk"]
+        versus = f" against the {found[1]['teamName']}" if opponent else ""
+        print(f"No game played by the {found[0]['teamName']}{versus} in the year up to {end}.")
+        return None
+    finally:
+        await adapter.aclose()
+
+
 def main(argv: list[str] | None = None) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")  # stat lines use "·"; Windows consoles default to cp1252
@@ -177,6 +203,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("teams", nargs="*", help="team name(s), e.g. twins or TEX MIN; lists the day's games if omitted")
     parser.add_argument("--game", type=int, help="MLB gamePk (instead of team names)")
     parser.add_argument("--date", type=date.fromisoformat, help="game date YYYY-MM-DD (default: today)")
+    parser.add_argument(
+        "--latest",
+        action="store_true",
+        help="use the team's most recent game, in progress or finished (on or before --date)",
+    )
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--once", action="store_true", help="fetch once and print starter lines")
     parser.add_argument(
@@ -204,7 +235,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.game is None:
         try:
-            args.game = asyncio.run(find_game(args.teams, args.date))
+            if args.latest and not args.teams:
+                print("--latest needs a team name, e.g. python agent.py twins --latest")
+                return 1
+            finder = find_latest if args.latest else find_game
+            args.game = asyncio.run(finder(args.teams, args.date))
         except httpx.HTTPError as e:
             print(f"Could not reach the MLB schedule ({type(e).__name__}). Try again, or use --game.")
             return 1

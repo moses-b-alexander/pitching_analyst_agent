@@ -81,6 +81,7 @@ python agent.py                            # list today's games
 python agent.py twins                      # follow today's Twins game live
 python agent.py rangers twins --date 2026-09-25 --replay   # replay a finished game, play by play
 python agent.py twins --once               # one snapshot of both starters' lines
+python agent.py twins --latest --replay    # replay the Twins' most recent game
 python agent.py --game <gamePk>            # or name the game by its MLB id
 ```
 
@@ -136,7 +137,7 @@ Done   Chat input while the game runs: name a starter or team, the observation i
 Done   Savant season baseline per starter (re-pulled each game, cached fallback) + pregame lines
 Done   /test: runs the test the model picked, in code, against the season baseline
 Done   Sequence metric: what he throws right after a given pitch
-Done   Find the game by team name (today by default); no game id needed
+Done   Find the game by team name (today by default, or --latest for their most recent game)
 ```
 
 ---

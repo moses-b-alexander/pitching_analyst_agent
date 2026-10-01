@@ -65,3 +65,77 @@ def test_describe(games):
     line = describe(next(g for g in games if g["gamePk"] == GAME))
     assert line.startswith(f"{GAME}  TEX @ MIN  ") and line.endswith("Final         Jacob deGrom vs Joe Ryan")
     assert describe(next(g for g in games if g["gamePk"] == CUBS_G2)).endswith("(game 2)")
+
+
+# -- --latest -----------------------------------------------------------------
+
+from pitching_agent.services.resolve import latest_played, named_teams  # noqa: E402
+
+TWINS, RANGERS = 142, 140
+TWINS_LATEST = 823650  # TEX @ MIN, 2026-09-27, the last game of their season
+
+
+@pytest.fixture(scope="module")
+def teams():
+    return load_json_gz("teams_2026.json.gz")["teams"]
+
+
+@pytest.fixture(scope="module")
+def twins_games():
+    """Twins schedule 2026-09-10 .. 2026-10-01."""
+    data = load_json_gz("schedule_MIN_2026-09.json.gz")
+    return [g for d in data["dates"] for g in d["games"]]
+
+
+def names(found):
+    return sorted(t["name"] for t in found)
+
+
+@pytest.mark.parametrize("query", ["twins", "MIN", "minnesota", "the twins tonight"])
+def test_one_team_named(teams, query):
+    found, ambiguous = named_teams(teams, query)
+    assert names(found) == ["Minnesota Twins"] and not ambiguous
+
+
+def test_two_teams_named_is_not_ambiguous(teams):
+    found, ambiguous = named_teams(teams, "rangers at twins")
+    assert names(found) == ["Minnesota Twins", "Texas Rangers"] and not ambiguous
+    found, ambiguous = named_teams(teams, "white sox")  # full nickname outranks the Red Sox's "sox"
+    assert names(found) == ["Chicago White Sox"] and not ambiguous
+
+
+@pytest.mark.parametrize(
+    "query,expected",
+    [
+        ("chicago", ["Chicago Cubs", "Chicago White Sox"]),
+        ("sox", ["Boston Red Sox", "Chicago White Sox"]),
+        ("new york", ["New York Mets", "New York Yankees"]),
+    ],
+)
+def test_one_word_fitting_two_teams_is_ambiguous(teams, query, expected):
+    found, ambiguous = named_teams(teams, query)
+    assert names(found) == expected and ambiguous
+
+
+def test_unknown_team(teams):
+    assert named_teams(teams, "narwhals") == ([], False)
+
+
+def test_latest_played(twins_games):
+    assert latest_played(twins_games)["gamePk"] == TWINS_LATEST
+    assert latest_played(twins_games, RANGERS)["gamePk"] == TWINS_LATEST
+    through_25th = [g for g in twins_games if g["officialDate"] <= "2026-09-25"]
+    assert latest_played(through_25th)["gamePk"] == GAME
+    assert latest_played(twins_games, opponent_id=999) is None
+    assert latest_played([]) is None
+
+
+def test_latest_skips_games_not_played(twins_games):
+    games = copy.deepcopy(sorted(twins_games, key=lambda g: g["gameDate"]))
+    last, previous = games[-1], games[-2]
+    last["status"].update(abstractGameState="Final", detailedState="Postponed")
+    assert latest_played(games)["gamePk"] == previous["gamePk"]
+    last["status"].update(abstractGameState="Preview", detailedState="Scheduled")
+    assert latest_played(games)["gamePk"] == previous["gamePk"]
+    last["status"].update(abstractGameState="Live", detailedState="In Progress")
+    assert latest_played(games)["gamePk"] == last["gamePk"]  # a game in progress is the latest
