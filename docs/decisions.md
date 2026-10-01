@@ -8,20 +8,30 @@ Where this file and SKILL.md disagree, this file records the agent-specific deci
 
 Decided 2026-09-30.
 
+## Scope (revised 2026-09-30)
+
+The agent does three things:
+
+1. **Fetch and count.** Poll the MLB feed, compute the stat lines and any test numbers in code. The model never produces a number.
+2. **Remember observations.** Save what the viewer types, indexed by team and starting pitcher. Nothing else is persisted.
+3. **Talk.** One model call per message: condensed skill prompt + current stat lines + that pitcher's observations + baseline numbers.
+
+Cut from the original architecture doc: MCP server, hypothesis ledger tables, summaries table, preference profile, per-role model routing and audit, provider telemetry, session export/import, pitch/snapshot storage, revision log. `architecture.md` is kept as the original handoff; where it disagrees with this file, this file wins.
+
 | # | Question | Decision |
 |---|---|---|
 | 1 | Half-inning output initiation | **Auto-print the deterministic factual capsule only.** Exec thesis runs on request (or when a pending observation for that pitcher exists). No LLM cost on quiet innings. **Half-inning lag** per SKILL.md §1: after bottom N print the top-N pitcher; after top N+1 print the bottom-N pitcher (configurable). If the feed is failing or unavailable when a capsule is due, keep polling with backoff and print it once data arrives, never skip or guess. |
 | 2 | Observation attribution | **User names the team or player explicitly.** Session keeps team membership for the two SPs only, so "Yankees" or "Schlittler" resolves to a starter. If no team/player is named, ask — do not guess from the active pitcher. |
-| 3 | Stat-test execution | **Explicit request only.** Suggest freely; never auto-run, including pre-frozen prospective tests. |
-| 4 | Cross-game personalization | **Preferences persist; hypotheses don't.** Persist favored problem classes, baseline choices, test preferences, zone-definition variants. Observations and theses are game/pitcher-scoped. Hypotheses, including frozen ones, are cleared with the game (#12), so they do **not** carry into the pitcher's next start (overrides SKILL.md §5's carry-forward option). |
-| 5 | Restart/recovery | **Required for V1.** On restart, rebuild game state from the replayable MLB feed and restore observations/hypotheses from SQLite. |
+| 3 | Stat-test execution | **Explicit request only.** The model classifies an observation and picks a test from a short fixed menu (returned as JSON); code runs the numbers; the model explains them. Never auto-run. |
+| 4 | Cross-game personalization | **None.** Nothing carries between games: no preference profile, no carried hypotheses. Observations are game-scoped and cleared per #12. |
+| 5 | Restart/recovery | **Required for V1, by refetching.** The MLB feed is cumulative, so a restart refetches the game and recomputes everything; saved observations are read back from SQLite. No game data is stored. |
 | 6 | Source-conflict policy | **MLB live feed wins automatically.** The MLB boxscore endpoint corroborates the starter-exit line (ESPN dropped 2026-09-30: undocumented, blocked our client, adds nothing MLB lacks). `pitch_type`, ER, and scoring-dependent fields are revision-tracked and provisional until finalization; exit summary may ship with `mix provisional`. See source table below. |
 | 7 | Reliever boundary | **Ingest always; warn once; allow on-demand.** Reliever requests get a one-time out-of-SP-scope warning, then are answered with the same tools. |
 | 8 | Exit polling | **Fixed 10-minute cadence**, first check immediate. Stop at finalization; give up 2 h after game end and mark `unresolved`. |
-| 9 | Exit notification | **Terminal prints final line + exit synthesis immediately** when source-complete. MCP (V2) exposes a resource and lets the host decide. |
-| 10 | Model backend | **Deferred** — separate discussion. No `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` in the dev environment as of this date. Core must run with no LLM (facts role is deterministic). |
+| 9 | Exit notification | **Terminal prints the final line immediately** when source-complete, plus a model synthesis if a model is configured. |
+| 10 | Model backend | **Open-weight models through one OpenAI-compatible endpoint.** Default is local Ollama (`http://localhost:11434/v1`); a hosted open-weight provider is the same adapter with a different `base_url` and key. One model, no per-role routing. With `model: null` the agent runs facts-only. Dev machine: RTX 4060 8 GB, 32 GB RAM, so 7-9B models at 4-bit fit on the GPU. |
 | 11 | Historical-cache refresh | **Full re-pull every pregame.** Current regular season + current postseason per starter, downloaded fresh at session start; cache is the fallback if Savant is unavailable. |
-| 12 | Persistence/privacy | **Local-only SQLite; per-game analysis is disposable; export/import in V1.** A clear command deletes a game's observations, hypotheses (incl. frozen), and summaries; the same happens automatically 24 h after the game is first seen Final. Pitch data, revision history, and cross-game preferences are kept. Raw feed snapshots are pruned to the latest once the game is Final. *(Revised 2026-09-30; originally "keep forever".)* |
+| 12 | Persistence/privacy | **Local SQLite holding viewer observations only**, indexed by team and starting pitcher (text, game, team, pitcher, inning/half, time). A clear command deletes a game's observations; the same happens automatically 24 h after the game is first seen Final. No pitch data, snapshots, hypotheses, summaries, or preferences are stored. *(Revised 2026-09-30.)* |
 
 ## Sources (V1)
 

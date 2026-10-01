@@ -1,4 +1,4 @@
-"""Config loading and model-role parsing."""
+"""Config loading."""
 
 from __future__ import annotations
 
@@ -8,49 +8,34 @@ from typing import Any
 
 import yaml
 
-DETERMINISTIC = "deterministic"
-ROLES = ("exec", "facts", "stats")
-
 
 @dataclass(frozen=True)
-class ModelSpec:
-    """A resolved `provider:model` spec, or the deterministic (no-LLM) backend."""
+class LLMConfig:
+    """One OpenAI-compatible endpoint (Ollama, llama.cpp, or a hosted open-weight provider)."""
 
-    provider: str
-    model: str | None = None
-
-    @classmethod
-    def parse(cls, raw: str) -> ModelSpec:
-        raw = raw.strip()
-        if raw == DETERMINISTIC:
-            return cls(provider=DETERMINISTIC)
-        provider, sep, model = raw.partition(":")
-        if not sep or not provider or not model:
-            # Never silently reinterpret an ambiguous name (architecture §10).
-            raise ValueError(f"model spec must be 'provider:model' or '{DETERMINISTIC}', got {raw!r}")
-        return cls(provider=provider, model=model)
-
-    def __str__(self) -> str:
-        return self.provider if self.model is None else f"{self.provider}:{self.model}"
+    base_url: str
+    model: str | None  # None: no model configured; the agent runs facts-only
+    api_key_env: str | None = None
 
 
 @dataclass
 class Config:
     db_path: Path
     cache_dir: Path
-    models: dict[str, ModelSpec | None]
+    llm: LLMConfig
     raw: dict[str, Any] = field(default_factory=dict)
 
 
 def load_config(path: str | Path = "config.yaml") -> Config:
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
-    models: dict[str, ModelSpec | None] = {}
-    for role in ROLES:
-        spec = (data.get("models") or {}).get(role)
-        models[role] = ModelSpec.parse(spec) if spec else None
+    llm = data.get("llm") or {}
     return Config(
         db_path=Path(data.get("db_path", "data/baseball.sqlite")),
         cache_dir=Path(data.get("cache_dir", "data/cache")),
-        models=models,
+        llm=LLMConfig(
+            base_url=llm.get("base_url", "http://localhost:11434/v1"),
+            model=llm.get("model"),
+            api_key_env=llm.get("api_key_env"),
+        ),
         raw=data,
     )

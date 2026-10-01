@@ -1,33 +1,21 @@
 # Live pitching agent configuration. See docs/decisions.md for rationale.
 
-db_path: data/baseball.sqlite
-cache_dir: data/cache
+db_path: data/baseball.sqlite    # observations only
+cache_dir: data/cache            # Savant season pulls
 
-# Model roles. "deterministic" means no LLM. exec/stats are unset until the
-# backend decision is made; the agent runs facts-only until then.
-models:
-  exec: null
-  facts: deterministic
-  stats: null
-
-providers: {}
-  # anthropic:
-  #   api_key_env: ANTHROPIC_API_KEY
-  # openai:
-  #   api_key_env: OPENAI_API_KEY
-  # local:
-  #   base_url_env: LOCAL_LLM_BASE_URL
+# One OpenAI-compatible endpoint. Default is local Ollama.
+# model: null runs facts-only (stat lines still work without any model).
+llm:
+  base_url: http://localhost:11434/v1
+  model: null
+  api_key_env: null              # e.g. GROQ_API_KEY for a hosted open-weight provider
 
 polling:
-  live_interval_s: 15          # live feed poll
+  live_interval_s: 15            # feed suggests >= 10 s (metaData.wait)
   exit_reconcile_interval_s: 600
   exit_give_up_after_game_end_s: 7200
 
 output:
-  half_inning: capsule_only    # capsule_only | capsule_and_exec | silent
+  half_inning: capsule_only      # capsule_only | silent
+  half_inning_lag: 1             # half-innings to wait before printing a capsule
   starter_exit: print_immediately
-
-sources:
-  primary_live: mlb_live
-  corroborate: [mlb_stats]
-  historical: savant_csv

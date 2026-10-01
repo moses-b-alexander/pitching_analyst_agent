@@ -1,5 +1,4 @@
 import copy
-from dataclasses import asdict
 
 import pytest
 from conftest import DEGROM, GAME, RYAN
@@ -7,10 +6,7 @@ from conftest import DEGROM, GAME, RYAN
 from pitching_agent.analytics.lines import window_hits, window_line, window_mix
 from pitching_agent.analytics.windows import InningWindow
 from pitching_agent.compositor import capsule
-from pitching_agent.models import Half
-from pitching_agent.services.ingestion import ingest_feed, replay
 from pitching_agent.sources import mlb
-from pitching_agent.store import connect, init_db, load_pas, load_pitches
 
 
 @pytest.fixture(scope="module")
@@ -85,39 +81,3 @@ def test_unclassified_pitch_makes_mix_pending(normalized):
     pitches = copy.deepcopy(pitches)
     next(p for p in pitches if p.pitcher_id == RYAN).pitch_type = None
     assert window_mix(pitches, RYAN) is None
-
-
-def test_store_roundtrip_revision_and_replay(final_feed, mid_feed):
-    conn = connect(":memory:")
-    init_db(conn)
-
-    first = ingest_feed(conn, mid_feed)
-    assert first.new_snapshot and first.pitches_inserted > 0
-    assert ingest_feed(conn, mid_feed).new_snapshot is False  # same timecode deduped
-
-    # Official scorer reclassifies Ryan's first pitch FF -> SI in a later snapshot
-    revised = copy.deepcopy(final_feed)
-    first_pitch = next(e for e in revised["liveData"]["plays"]["allPlays"][0]["playEvents"] if e.get("isPitch"))
-    first_pitch["details"]["type"]["code"] = "SI"
-    revised["metaData"]["timeStamp"] = "99999999_999999"
-    ingest_feed(conn, final_feed)
-    res = ingest_feed(conn, revised)
-    assert res.pitches_revised == 1
-    rev = conn.execute("SELECT field, old_value, new_value FROM field_revisions").fetchall()
-    assert [tuple(r) for r in rev] == [("pitch_type", "FF", "SI")]
-
-    stored_p, stored_pa = load_pitches(conn, GAME), load_pas(conn, GAME)
-    orig_p, orig_pa = mlb.normalize(revised)
-    assert len(stored_p) == len(orig_p) and stored_pa == orig_pa
-    assert window_line(stored_p, stored_pa, RYAN) == window_line(orig_p, orig_pa, RYAN)
-
-    # Final: older snapshots pruned to the latest; revision history lives in field_revisions
-    assert conn.execute("SELECT COUNT(*) FROM raw_snapshots").fetchone()[0] == 1
-
-    # Restart recovery: normalized tables rebuilt from the remaining snapshot alone
-    conn.execute("DELETE FROM pitches")
-    conn.execute("DELETE FROM plate_appearances")
-    replay(conn, GAME)
-    assert conn.execute("SELECT COUNT(*) FROM field_revisions").fetchone()[0] == 1
-    assert {asdict(p)["pitch_type"] for p in load_pitches(conn, GAME) if p.at_bat_number == 1 and p.pitch_number == 1} == {"SI"}
-    assert load_pas(conn, GAME)[0].half is Half.TOP

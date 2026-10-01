@@ -5,25 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Generic, TypeVar
-
-T = TypeVar("T")
-
-
-class Confidence(str, Enum):
-    AUTHORITATIVE = "authoritative"
-    CORROBORATED = "corroborated"
-    PROVISIONAL = "provisional"
-    DEGRADED = "degraded"
-
-
-@dataclass(frozen=True)
-class ValueWithSource(Generic[T]):
-    value: T
-    source: str
-    observed_at: datetime
-    confidence: Confidence = Confidence.AUTHORITATIVE
-    revision: int = 0
+from typing import Any
 
 
 class ProblemClass(str, Enum):
@@ -43,16 +25,6 @@ class ProblemClass(str, Enum):
 class InferenceType(str, Enum):
     EXPLORATORY = "exploratory"
     PROSPECTIVE = "prospective"
-    SEQUENTIAL = "sequential"
-
-
-class HypothesisStatus(str, Enum):
-    CANDIDATE = "candidate"
-    FROZEN = "frozen"
-    COLLECTING = "collecting"
-    TESTED = "tested"
-    RETIRED = "retired"
-    UNRESOLVED = "unresolved"
 
 
 class Half(str, Enum):
@@ -90,7 +62,6 @@ class Pitch:
     launch_angle: float | None = None
     timestamp: datetime | None = None
     play_id: str | None = None
-    source_revision: int = 0
 
 
 @dataclass

@@ -13,30 +13,21 @@ from pitching_agent import __version__  # noqa: E402
 from pitching_agent.analytics.lines import window_hits, window_line, window_mix  # noqa: E402
 from pitching_agent.compositor import capsule  # noqa: E402
 from pitching_agent.config import load_config  # noqa: E402
-from pitching_agent.services.ingestion import poll_once  # noqa: E402
 from pitching_agent.sources import mlb  # noqa: E402
-from pitching_agent.store import (  # noqa: E402
-    clear_game_analysis,
-    connect,
-    init_db,
-    load_pas,
-    load_pitches,
-    purge_expired,
-)
+from pitching_agent.store import clear_game, connect, init_db, purge_expired, touch_game  # noqa: E402
 
 
 async def snapshot(conn, game_id: int) -> None:
-    """Ingest the current feed once and print each starter's line so far."""
+    """Fetch the current feed once and print each starter's line so far."""
     adapter = mlb.MLBStatsAdapter()
     try:
-        res = await poll_once(adapter, conn, game_id)
         feed = await adapter.live_feed(game_id)
     finally:
         await adapter.aclose()
-    info = res.game
-    print(f"{info.away.abbrev} @ {info.home.abbrev} {info.date} | {info.detailed_status}"
-          f" | +{res.pitches_inserted} pitches, {res.pitches_revised} revised")  # fmt: skip
-    pitches, pas = load_pitches(conn, game_id), load_pas(conn, game_id)
+    info = mlb.game_info(feed)
+    touch_game(conn, info.game_id, info.date, is_final=info.status == "Final")
+    print(f"{info.away.abbrev} @ {info.home.abbrev} {info.date} | {info.detailed_status}")
+    pitches, pas = mlb.normalize(feed)
     names = {int(k[2:]): v["fullName"] for k, v in feed["gameData"]["players"].items()}
     for side, pid in mlb.actual_starters(feed).items():
         if pid is None:
@@ -49,8 +40,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Live starting-pitching analyst")
     parser.add_argument("--game", type=int, help="MLB gamePk")
     parser.add_argument("--config", default="config.yaml")
-    parser.add_argument("--once", action="store_true", help="ingest once and print starter lines")
-    parser.add_argument("--clear-game", type=int, metavar="GAMEPK", help="delete a game's observations/hypotheses/summaries")
+    parser.add_argument("--once", action="store_true", help="fetch once and print starter lines")
+    parser.add_argument("--clear-game", type=int, metavar="GAMEPK", help="delete a game's saved observations")
     parser.add_argument("--version", action="version", version=__version__)
     args = parser.parse_args(argv)
 
@@ -58,14 +49,12 @@ def main(argv: list[str] | None = None) -> int:
     conn = connect(cfg.db_path)
     init_db(conn)
 
-    roles = ", ".join(f"{r}={spec or 'unset'}" for r, spec in cfg.models.items())
-    print(f"live-pitching-agent {__version__} | db={cfg.db_path} | {roles}")
+    print(f"live-pitching-agent {__version__} | db={cfg.db_path} | model={cfg.llm.model or 'none (facts-only)'}")
 
     for game_id in purge_expired(conn):
-        print(f"Auto-cleared analysis for game {game_id} (final > 24 h).")
+        print(f"Auto-cleared observations for game {game_id} (final > 24 h).")
     if args.clear_game is not None:
-        counts = clear_game_analysis(conn, args.clear_game)
-        print(f"Cleared game {args.clear_game}: " + ", ".join(f"{n} {t}" for t, n in counts.items()))
+        print(f"Cleared game {args.clear_game}: {clear_game(conn, args.clear_game)} observations")
         return 0
     if args.game is None:
         print("No --game given.")

@@ -1,1 +1,1 @@
-"""Provider-agnostic LLM interpreter. Backend choice is deferred (decisions.md #10)."""
+"""Model interpreter: one OpenAI-compatible endpoint (decisions.md #10)."""

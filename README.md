@@ -2,7 +2,7 @@
 
 The standalone agent implementation of the [Live Starting Pitching Analyst](https://github.com/moses-b-alexander/live-pitching-analyst-chatgpt-plugin).
 
-The plugin is a skills-only package that relies on the host's browsing tools. This repository is the **separate agent implementation** that the plugin README mentions: deterministic data ingestion and stat lines, with interchangeable model backends for interpretation and statistical reasoning.
+The plugin is a skills-only package that relies on the host's browsing tools. This repository is the **separate agent implementation** that the plugin README mentions: deterministic data fetching and stat lines, with an open-weight model for interpretation.
 
 > **Track the matchup; analyze the pitcher.**
 
@@ -50,25 +50,24 @@ The products are the same as in the plugin:
 ## Architecture
 
 ```text
-DATA SOURCES          MLB Stats API (live) · Baseball Savant (historical)
+MLB Stats API (live)  ·  Baseball Savant (season baselines)
     ↓
-SOURCE ADAPTERS       src/pitching_agent/sources/
+sources/        fetch + normalize to Savant conventions
     ↓
-NORMALIZED STORE      SQLite — src/pitching_agent/store.py
+analytics/      inning windows · line / mix / hits · stat tests     ← all numbers come from here
+compositor.py   the three fixed stat lines
     ↓
-EVENT / STATE ENGINE  events.py · state.py
+llm/            one OpenAI-compatible endpoint (local Ollama by default)
     ↓
-DETERMINISTIC         analytics/ · compositor.py · services/reconciliation.py
-    ↓
-LLM INTERPRETER       llm/  (provider-agnostic; optional)
-    ↓
-CLI / MCP             agent.py · server.py
+agent.py        terminal
 ```
 
-The baseball data service stays useful without any LLM.
+Nothing about the game is stored: the MLB feed is cumulative, so a restart refetches it. SQLite holds only the observations you type, indexed by team and starting pitcher, and they are cleared on command or 24 hours after the game ends.
 
-* Full design: [`docs/architecture.md`](docs/architecture.md)
-* Product-owner decisions: [`docs/decisions.md`](docs/decisions.md)
+The stat lines work with no model configured.
+
+* Product-owner decisions and current scope: [`docs/decisions.md`](docs/decisions.md)
+* Original design handoff (broader than what is built): [`docs/architecture.md`](docs/architecture.md)
 
 ---
 
@@ -88,22 +87,20 @@ python agent.py --game <gamePk> --once
 ```text
 .
 ├── agent.py                 CLI entry point
-├── server.py                MCP server (V2)
 ├── config.yaml
 ├── assets/
 ├── docs/
-│   ├── architecture.md
-│   └── decisions.md
+│   ├── architecture.md      original handoff
+│   └── decisions.md         decisions + current scope
 ├── skills/
 │   └── live-starting-pitching-analyst/
 │       └── SKILL.md         canonical spec (mirrored from plugin)
 ├── src/pitching_agent/
-│   ├── config.py  models.py  state.py  events.py  store.py  compositor.py
-│   ├── sources/   base · mlb · savant
-│   ├── analytics/ features · windows · stat_tests · transitions · trajectories
-│   ├── llm/       base · anthropic · openai · prompts
-│   ├── services/  ingestion · reconciliation · hypothesis · analyst
-│   └── mcp/       tools
+│   ├── config.py  models.py  state.py  store.py  compositor.py
+│   ├── sources/   mlb · savant
+│   ├── analytics/ features · windows · lines · stat_tests
+│   ├── llm/       prompts
+│   └── services/  reconciliation · hypothesis
 ├── scripts/
 │   └── fetch_fixtures.py    downloads test data locally
 ├── tests/
@@ -114,19 +111,16 @@ python agent.py --game <gamePk> --once
 
 ## Status
 
-This project is in early development. The build order is:
+Early development.
 
 ```text
-1. Reliable live ingestion          (MLB normalize + store + replay done; poll loop next)
-2. Normalized event state           ← next
-3. Deterministic factual capsule    (compositor done)
-4. Pitcher-specific state / inning windows
-5. Observation capture
-6. LLM interpretation               (backend TBD)
-7. Starter-exit reconciliation      (gate logic done)
-8. Statistical tests
-9. MCP wrapper
-10. Optional visualization
+Done   MLB live feed -> pitches / plate appearances / box lines (matches box score and Savant)
+Done   Three deterministic stat lines; inning windows; exit completeness check
+Done   Observation store (by team / starter), clear command, 24 h auto-clear
+Next   Polling loop: half-inning capsules, starter-exit detection
+       Savant season download + pregame lines
+       Model adapter (Ollama), condensed prompt, chat input
+       Barebones stat-test menu
 ```
 
 ---
