@@ -95,6 +95,11 @@ class GameTracker:
         """Game over and every starter's line is closed out."""
         return self.is_final and all(s.state in CLOSED_STATES for s in self.starters.values())
 
+    @property
+    def pitches(self) -> list[Pitch]:
+        """Every pitch in the game so far, as of the last update."""
+        return self._pitches
+
     def candidates(self) -> list[StarterTrack]:
         """The starters an observation can be about: actual starters, else the probables before first pitch."""
         found = []

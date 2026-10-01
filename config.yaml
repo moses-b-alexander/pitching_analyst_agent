@@ -13,6 +13,7 @@ llm:
 
 stats:
   alpha: 0.05                    # significance level; CIs are (1 - alpha)
+  mean_test: permutation         # permutation (studentized, no Normality assumption) | welch (normal-theory t-test)
 
 polling:
   live_interval_s: 15            # feed suggests >= 10 s (metaData.wait)

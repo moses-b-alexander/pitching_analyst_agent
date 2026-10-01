@@ -107,9 +107,9 @@ ollama create qwen3:8b-8k -f ollama/Modelfile   # same weights, 8,192-token cont
 ├── src/pitching_agent/
 │   ├── config.py  models.py  state.py  store.py  compositor.py
 │   ├── sources/   mlb · savant
-│   ├── analytics/ features · windows · lines · stat_tests
+│   ├── analytics/ features · windows · lines · metrics · stat_tests · run
 │   ├── llm/       client · prompts
-│   └── services/  tracker · live · chat · reconciliation · hypothesis
+│   └── services/  tracker · live · chat · pregame · reconciliation · hypothesis
 ├── scripts/
 │   └── fetch_fixtures.py    downloads test data locally
 ├── tests/
@@ -131,8 +131,9 @@ Done   Polling loop: half-inning capsules (half-inning lag), starter-exit detect
 Done   Model client (local Ollama, qwen3:8b) and observation classifier
 Done   Chat input while the game runs: name a starter or team, the observation is saved,
        classified, and answered; /status, /obs, /clear, /quit
-Next   Savant season download + pregame lines
-       Barebones stat-test menu
+Done   Savant season baseline per starter (re-pulled each game, cached fallback) + pregame lines
+Done   /test: runs the test the model picked, in code, against the season baseline
+Next   Sequence metric (pitch after pitch); opener / bullpen-game detection
 ```
 
 ---

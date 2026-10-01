@@ -52,3 +52,22 @@ Excluded: ESPN, HTML scrapers (CBS/Yahoo), FanGraphs. Retrosheet is not a live s
 | Hit types + fielder (`S8`, `D9`, `HR`) | `mlb_live` `result.eventType` + `hitData.location` | ✅ all 12 hits (vs Savant `events` + `hit_location`) |
 | P · S/B · R/ER · H · K · BB · IP | `mlb_live` plays and pitches | ✅ equals official boxscore for all 7 pitchers |
 | Velo, movement, release, plate location | `mlb_live` `pitchData` (converted, see `sources/mlb.py`) | ✅ 103/103 pitches |
+
+## Stat tests (as built)
+
+The model picks one test and one metric from fixed menus; code computes everything. Run with `/test`.
+
+| Test | Method | Needs season baseline |
+|---|---|---|
+| `proportion_vs_baseline` | Exact binomial, tonight's rate vs his season rate | yes |
+| `two_window_proportion` | Fisher exact, innings after the observation vs before | no |
+| `mean_shift` | Studentized permutation test (default) or Welch t-test (`stats.mean_test: welch`) | yes |
+| `trend` | Linear regression of the value on pitch order tonight | no |
+
+- **Window:** if he has pitched innings after the observation, the test uses only those (prospective); otherwise it uses what exists (exploratory). The boundary is fixed when the viewer types, not when the model answers.
+- **Baseline:** his current season (regular + postseason) before tonight's date, never including tonight's game.
+- **Same definition, two sources:** every metric gives identical results from the MLB feed and from Savant for the same game (tested).
+- **"Season starts" line:** pitches within one start are not independent draws from the season, so a pitch-level test can call ordinary start-to-start variation significant. Each baseline test therefore also prints the range of his individual starts and where tonight ranks.
+- **Why studentized:** tonight's values are usually tighter than a full season's. A raw difference-in-means permutation test assumes equal spread and disagreed with its own confidence interval (p=.08 vs an interval excluding zero on the fixture game); permuting the Welch statistic fixes that and agrees with Welch (p=.011 vs .010).
+- **Not computable yet:** `share_after_previous_pitch_type` (the classification does not say which previous pitch).
+

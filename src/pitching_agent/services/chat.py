@@ -11,6 +11,11 @@ import re
 import sqlite3
 from typing import Any, Protocol
 
+import pandas as pd
+
+from pitching_agent.analytics import metrics
+from pitching_agent.analytics.run import run_test
+from pitching_agent.analytics.stat_tests import DEFAULT_ALPHA, MeanMethod
 from pitching_agent.llm.client import LLMUnavailable
 from pitching_agent.llm.prompts import CLASSIFY_SCHEMA, CLASSIFY_SYSTEM, PITCH_CODES
 from pitching_agent.services.tracker import GameTracker, StarterTrack
@@ -20,6 +25,14 @@ REPLY_SYSTEM = (
     "You are a pitching analyst sitting next to a viewer watching a live MLB game. "
     "Reply in at most three short sentences. Use only the numbers provided; never invent a number. " + PITCH_CODES
 )
+
+TEST_SYSTEM = (
+    "You explain a statistical test result to a baseball viewer in one or two plain sentences. "
+    "Say whether the data support what the viewer saw, and mention the sample size if it is small. "
+    "Use only the numbers provided; never invent a number. " + PITCH_CODES
+)
+
+TEST_REQUESTS = {"/test", "test it", "test that", "run it", "run the test"}
 
 # Team-name words too generic to identify a team on their own.
 _GENERIC = {"new", "los", "san", "st", "city", "bay", "red", "white", "blue", "the"}
@@ -41,11 +54,24 @@ def _keys(s: StarterTrack) -> set[str]:
 
 
 class Chat:
-    def __init__(self, tracker: GameTracker, conn: sqlite3.Connection, llm: ChatModel | None) -> None:
+    def __init__(
+        self,
+        tracker: GameTracker,
+        conn: sqlite3.Connection,
+        llm: ChatModel | None,
+        *,
+        baselines: dict[int, pd.DataFrame] | None = None,
+        alpha: float = DEFAULT_ALPHA,
+        mean_method: MeanMethod = "permutation",
+    ) -> None:
         self.tracker = tracker
         self.conn = conn
         self.llm = llm
+        self.baselines = baselines if baselines is not None else {}  # pitcher id -> season metrics frame
+        self.alpha = alpha
+        self.mean_method = mean_method
         self._pending: str | None = None  # an observation waiting for the viewer to say who it is about
+        self._last: dict[str, Any] | None = None  # most recent classified observation, for /test
 
     def _named(self, text: str) -> list[StarterTrack]:
         words = set(_tokens(text))
@@ -65,7 +91,10 @@ class Chat:
         if command == "/obs":
             return self._list()
         if command == "/clear":
+            self._last = None
             return f"Cleared {clear_game(self.conn, info.game_id)} observations for this game."
+        if command in TEST_REQUESTS:
+            return await self._test()
 
         candidates = self.tracker.candidates()
         if not candidates:
@@ -97,17 +126,22 @@ class Chat:
             half=info.half.value if info.half else None,
             raw_text=text,
         )
-        lines = [f"OBS saved: {s.name} ({s.team})", self._boundary(s)]
+        # Everything about "now" is fixed here, before any model call: the game keeps
+        # advancing while the model is awaited, and the boundary must be when the viewer spoke.
+        boundary = self.tracker.innings_pitched_in(s)
+        lines = [f"OBS saved: {s.name} ({s.team})", self._boundary(s, boundary)]
         if self.llm is None:
             return "\n".join(lines)
 
-        # Snapshot now: the game keeps advancing while the model call is awaited.
         capsule_now = self.tracker.starter_capsule(s)
         try:
             c = await self.llm.chat_json(
                 [{"role": "system", "content": CLASSIFY_SYSTEM}, {"role": "user", "content": text}], CLASSIFY_SCHEMA
             )
             lines.insert(1, f"Class: {c['primary_class']} | Test: {c['test']} ({c['pitch_type'] or 'any pitch'}, {c['metric']})")
+            self._last = {"starter": s, "classification": c, "boundary": boundary, "text": text}
+            if c["test"] != "none":
+                lines.insert(3, "Type /test to run it.")
             context = [f"{s.name} ({s.team}) tonight:", capsule_now]
             if earlier:
                 context.append("Earlier viewer observations: " + "; ".join(o.raw_text for o in earlier))
@@ -121,9 +155,39 @@ class Chat:
             lines.append(f"(model unavailable, saved without analysis: {e})")
         return "\n".join(lines)
 
-    def _boundary(self, s: StarterTrack) -> str:
-        """Which of tonight's data generated this observation, and where prospective data starts (SKILL.md §5)."""
-        n = self.tracker.innings_pitched_in(s)
+    async def _test(self) -> str:
+        """Run the test named by the most recent classified observation (decisions.md #3: only on request)."""
+        if self._last is None:
+            return "Nothing to test yet: make an observation first."
+        s, c = self._last["starter"], self._last["classification"]
+        report = run_test(
+            c,
+            metrics.tonight_frame(self.tracker.pitches, s.pitcher_id),
+            self.baselines.get(s.pitcher_id),
+            boundary_inning=self._last["boundary"],
+            alpha=self.alpha,
+            mean_method=self.mean_method,
+        )
+        lines = [f'{s.name}: "{self._last["text"]}"', report.text]
+        if report.result is not None and self.llm is not None:
+            try:
+                reply = await self.llm.chat(
+                    [
+                        {"role": "system", "content": TEST_SYSTEM},
+                        {"role": "user", "content": f'Viewer observation: {self._last["text"]}\n\n{report.text}'},
+                    ]
+                )
+                if reply:
+                    lines.append(reply)
+            except LLMUnavailable:
+                pass  # the numbers stand on their own
+        return "\n".join(lines)
+
+    def _boundary(self, s: StarterTrack, n: int) -> str:
+        """Which of tonight's data generated this observation, and where prospective data starts (SKILL.md §5).
+
+        `n` is the last inning he had pitched in when the viewer spoke.
+        """
         if s.exited:
             return "He has exited: any test of this on tonight's data is exploratory."
         if n == 0:

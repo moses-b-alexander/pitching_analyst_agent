@@ -49,6 +49,7 @@ def test_named_player_is_saved_classified_and_answered(mid_feed, conn):
         "OBS saved: Joe Ryan (MIN)",
         "Class: location_spatial | Test: proportion_vs_baseline (ST, share_below_zone)",
         "Exploratory through innings 1-5; prospective window starts with his inning 6.",
+        "Type /test to run it.",
         "Sweeper usage is 28% tonight.",
     ]
     (obs,) = observations(conn, pitcher_id=RYAN)

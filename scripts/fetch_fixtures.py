@@ -30,6 +30,11 @@ SAVANT = (
     f"&game_date_gt=2026-09-25&game_date_lt=2026-09-25&hfGT=R%7C&team=MIN&pitchers_lookup%5B%5D={RYAN}"
 )
 
+SAVANT_SEASON = (
+    "https://baseballsavant.mlb.com/statcast_search/csv?all=true&type=details&player_type=pitcher"
+    f"&hfSea=2026%7C&hfGT=R%7C&pitchers_lookup%5B%5D={RYAN}"
+)
+
 JSON_FIXTURES = {
     f"feed_{GAME}_final.json.gz": (FEED, None),
     f"feed_{GAME}_{MID_TIMECODE}.json.gz": (FEED, {"timecode": MID_TIMECODE}),
@@ -56,14 +61,19 @@ def main() -> None:
             print(f"wrote {name}")
             time.sleep(1)  # be polite
 
-        path = OUT / f"savant_{GAME}_{RYAN}.csv.gz"
-        if path.exists() and not args.force:
-            print(f"skip  {path.name}")
-        else:
-            resp = client.get(SAVANT)
+        for name, url in {
+            f"savant_{GAME}_{RYAN}.csv.gz": SAVANT,
+            f"savant_season_2026_{RYAN}.csv.gz": SAVANT_SEASON,
+        }.items():
+            path = OUT / name
+            if path.exists() and not args.force:
+                print(f"skip  {name}")
+                continue
+            resp = client.get(url)
             resp.raise_for_status()
             path.write_bytes(gzip.compress(resp.content))
-            print(f"wrote {path.name}")
+            print(f"wrote {name}")
+            time.sleep(1)
 
 
 if __name__ == "__main__":

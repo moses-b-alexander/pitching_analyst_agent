@@ -16,6 +16,8 @@ from pitching_agent.config import load_config  # noqa: E402
 from pitching_agent.llm.client import LLMClient  # noqa: E402
 from pitching_agent.services.chat import Chat  # noqa: E402
 from pitching_agent.services.live import ReplaySource, run_live  # noqa: E402
+from pitching_agent.services.pregame import Baselines  # noqa: E402
+from pitching_agent.sources.savant import SavantAdapter  # noqa: E402
 from pitching_agent.services.tracker import GameTracker, Output  # noqa: E402
 from pitching_agent.sources import mlb  # noqa: E402
 from pitching_agent.store import clear_game, connect, init_db, purge_expired, touch_game  # noqa: E402
@@ -51,13 +53,21 @@ async def live(conn, cfg, game_id: int, replay_delay: float | None) -> None:
     def emit(out: Output) -> None:
         print(f"\n{out.text}", flush=True)
 
+    adapter = mlb.MLBStatsAdapter()
+    savant = SavantAdapter(cfg.cache_dir)
+    baselines = Baselines(adapter, savant, emit)
+    llm = LLMClient(cfg.llm) if cfg.llm.model else None
+    stats_cfg = cfg.raw.get("stats") or {}
+    chat = Chat(
+        tracker, conn, llm, baselines=baselines.frames, alpha=cfg.alpha, mean_method=stats_cfg.get("mean_test", "permutation")
+    )
+
     def on_feed(feed) -> None:
         info = tracker.info
-        touch_game(conn, info.game_id, info.date, is_final=info.status == "Final")
+        baselines.ensure(tracker)  # season lines + baseline for any starter not loaded yet
+        if replay_delay is None:
+            touch_game(conn, info.game_id, info.date, is_final=info.status == "Final")
 
-    adapter = mlb.MLBStatsAdapter()
-    llm = LLMClient(cfg.llm) if cfg.llm.model else None
-    chat = Chat(tracker, conn, llm)
     try:
         if replay_delay is None:
             source, interval = adapter, float(polling.get("live_interval_s", 15))
@@ -72,7 +82,7 @@ async def live(conn, cfg, game_id: int, replay_delay: float | None) -> None:
                 interval=interval,
                 reconcile_interval=float(polling.get("exit_reconcile_interval_s", 600)),
                 give_up_after=float(polling.get("exit_give_up_after_game_end_s", 7200)),
-                on_feed=on_feed if replay_delay is None else None,
+                on_feed=on_feed,
                 **({"sleep": _replay_sleep(replay_delay)} if replay_delay is not None else {}),
             )
         )
@@ -87,7 +97,9 @@ async def live(conn, cfg, game_id: int, replay_delay: float | None) -> None:
             print("\nBoth starters are final. Keep chatting, or /quit.", flush=True)
             await chat_task
     finally:
+        await baselines.wait()
         await adapter.aclose()
+        await savant.aclose()
         if llm:
             await llm.aclose()
 

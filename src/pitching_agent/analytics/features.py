@@ -1,32 +1,20 @@
-"""Centralized, versioned pitch-feature definitions (architecture §17).
+"""Centralized, versioned zone definitions (architecture §17). Used by analytics.metrics.
 
-All zone/location concepts live here. Bump FEATURE_VERSION when a definition changes,
-and record the version alongside any stored test result.
+Coordinates are Statcast catcher's-view feet: plate_x (0 = plate center), plate_z (height),
+measured at mid-plate. sz_top / sz_bot are the batter's zone for that pitch.
 
-Coordinates are Statcast catcher's-view feet: plate_x (0 = plate center), plate_z (height).
+- in zone: any part of the ball touches the rulebook zone.
+- below / above zone: the whole ball is under sz_bot / over sz_top.
+- heart: ball center within the middle HEART_FRACTION of the zone's width and height
+  (an approximation of Savant's "heart" attack zone).
+
+Bump FEATURE_VERSION when a definition changes.
 """
 
 from __future__ import annotations
 
-FEATURE_VERSION = "0.1"
+FEATURE_VERSION = "0.2"
 
 PLATE_HALF_WIDTH_FT = 17 / 2 / 12
 BALL_RADIUS_FT = 2.9 / 2 / 12
-
-
-def is_in_zone(plate_x: float, plate_z: float, sz_bot: float, sz_top: float) -> bool:
-    """Any part of the ball touches the rulebook zone."""
-    edge = PLATE_HALF_WIDTH_FT + BALL_RADIUS_FT
-    return abs(plate_x) <= edge and sz_bot - BALL_RADIUS_FT <= plate_z <= sz_top + BALL_RADIUS_FT
-
-
-def is_below_zone(plate_z: float, sz_bot: float) -> bool:
-    return plate_z < sz_bot - BALL_RADIUS_FT
-
-
-def is_above_zone(plate_z: float, sz_top: float) -> bool:
-    return plate_z > sz_top + BALL_RADIUS_FT
-
-
-# TODO: is_heart / is_edge (Savant attack-zone definitions), is_inner_to_batter /
-# is_outer_to_batter (needs batter handedness), backdoor/frontdoor candidates.
+HEART_FRACTION = 2 / 3

@@ -40,5 +40,11 @@ def boxscore():
 
 
 @pytest.fixture(scope="session")
+def savant_season_ryan():
+    """Ryan's full 2026 regular season, including game 823652."""
+    return pd.read_csv(_require(f"savant_season_2026_{RYAN}.csv.gz"))
+
+
+@pytest.fixture(scope="session")
 def savant_ryan():
     return pd.read_csv(_require(f"savant_{GAME}_{RYAN}.csv.gz"))
