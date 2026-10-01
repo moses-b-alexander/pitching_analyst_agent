@@ -69,7 +69,7 @@ The model picks one test and one metric from fixed menus; code computes everythi
 - **Same definition, two sources:** every metric gives identical results from the MLB feed and from Savant for the same game (tested).
 - **"Season starts" line:** pitches within one start are not independent draws from the season, so a pitch-level test can call ordinary start-to-start variation significant. Each baseline test therefore also prints the range of his individual starts and where tonight ranks.
 - **Why studentized:** tonight's values are usually tighter than a full season's. A raw difference-in-means permutation test assumes equal spread and disagreed with its own confidence interval (p=.08 vs an interval excluding zero on the fixture game); permuting the Welch statistic fixes that and agrees with Welch (p=.011 vs .010).
-- **Not computable yet:** `share_after_previous_pitch_type` (the classification does not say which previous pitch).
+- **Sequences:** `share_after_previous_pitch_type` is, of the pitches thrown right after a given pitch type in the same plate appearance, the share that were the pitch in question (e.g. sweeper after four-seam). The model supplies both pitch codes; counts match a direct calculation from raw Savant rows (tested).
 - **Heart of zone is Savant's definition:** ball center within the middle two thirds of the zone after widening it by one ball radius on every side. It reproduces Savant's own heart attack-zone filter exactly (657 of 657 heart pitches, 0 false positives, over Ryan's 2,441 located 2026 pitches; tested).
 - **Out of scope:** opener and bullpen games are not detected; whoever throws the first pitch for a side is treated as the starter.
 

@@ -41,7 +41,7 @@ def test_every_metric_matches_between_feed_and_savant_for_the_same_game(tonight,
     assert len(tonight) == len(same_game) == 103
     for pitch in (None, "FF", "ST", "FS", "KC", "SI", "SL"):
         for m in metrics.PROPORTION_METRICS:
-            if m == "usage_share" and pitch is None:
+            if m == metrics.SEQUENCE_METRIC or (m == "usage_share" and pitch is None):
                 continue
             assert metrics.proportion(tonight, m, pitch) == metrics.proportion(same_game, m, pitch), (m, pitch)
         for m in metrics.CONTINUOUS_METRICS:
@@ -50,11 +50,24 @@ def test_every_metric_matches_between_feed_and_savant_for_the_same_game(tonight,
             assert np.allclose(a, b, atol=0.11), (m, pitch)  # Savant rounds to 0.01 ft / 0.1 mph
 
 
+def test_sequence_metric_matches_between_sources_and_raw_savant(tonight, baseline, savant_season_ryan):
+    m = metrics.SEQUENCE_METRIC
+    same_game = metrics.savant_frame(savant_season_ryan[savant_season_ryan.game_pk == GAME])
+    # Expected counts computed independently from the raw Savant rows (previous pitch in the same PA).
+    expected = {("SI", "FF"): ((1, 34), (58, 788)), ("ST", "FF"): ((10, 34), (131, 788)), ("FF", "ST"): ((9, 19), (107, 275))}
+    for (pitch, previous), (game, season) in expected.items():
+        assert metrics.proportion(tonight, m, pitch, previous) == game
+        assert metrics.proportion(same_game, m, pitch, previous) == game
+        assert metrics.proportion(baseline, m, pitch, previous) == season
+    with pytest.raises(ValueError):
+        metrics.proportion(tonight, m, "SI", None)
+
+
 def test_metric_menu_matches_the_prompt_menu():
     from pitching_agent.llm.prompts import METRICS
 
     computable = set(metrics.PROPORTION_METRICS) | set(metrics.CONTINUOUS_METRICS)
-    assert computable | {"share_after_previous_pitch_type", "none"} == set(METRICS)
+    assert computable | {"none"} == set(METRICS)
 
 
 # -- stat tests ----------------------------------------------------------------
@@ -97,6 +110,17 @@ def test_usage_test_report_is_fully_specified(tonight, baseline):
     ]
 
 
+def test_sequence_test_report(tonight, baseline):
+    c = {"test": "proportion_vs_baseline", "pitch_type": "ST", "metric": "share_after_previous_pitch_type", "previous_pitch_type": "FF"}
+    assert run_test(c, tonight, baseline, boundary_inning=0).text.splitlines() == [
+        "Test: ST after FF, innings 1-6 (prospective)",
+        "Tonight: 10/34 (29.4%)",
+        "Baseline: 16.6% (n=788) | Effect: +12.8 pp | 95% CI 15.1% to 47.5%",
+        "Season starts (25): 4.0% to 43.8%, median 15.9% | tonight is above 23 of 25",
+        "exact binomial (two-sided) | p=.061 | not significant at alpha .05",
+    ]
+
+
 def test_window_is_prospective_only_when_pitches_follow_the_observation(tonight, baseline):
     c = {"test": "proportion_vs_baseline", "pitch_type": "KC", "metric": "share_below_zone"}
     later = run_test(c, tonight, baseline, boundary_inning=3)
@@ -118,7 +142,7 @@ def test_alpha_changes_the_verdict_and_interval(tonight, baseline):
     "c,base,expected",
     [
         ({"test": "none", "pitch_type": None, "metric": "none"}, True, "not checkable with pitch data"),
-        ({"test": "proportion_vs_baseline", "pitch_type": "SI", "metric": "share_after_previous_pitch_type"}, True, "not computable yet"),
+        ({"test": "proportion_vs_baseline", "pitch_type": "SI", "metric": "share_after_previous_pitch_type"}, True, "a sequence needs both pitches"),
         ({"test": "proportion_vs_baseline", "pitch_type": None, "metric": "usage_share"}, True, "needs a specific pitch type"),
         ({"test": "mean_shift", "pitch_type": "FF", "metric": "release_speed"}, False, "no season baseline is loaded"),
         ({"test": "proportion_vs_baseline", "pitch_type": "CU", "metric": "share_below_zone"}, True, "nothing to count"),

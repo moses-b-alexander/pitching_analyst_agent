@@ -50,3 +50,6 @@ def test_classifies_unseen_observations():
     assert len(wrong) <= 1, wrong  # small models are allowed one miss
     for text in ("way more sweepers than normal", "ryan is throwing a ton of sweepers"):
         assert results[text]["metric"] == "usage_share", (text, results[text])
+    seq = results["he goes changeup every time after a sinker"]
+    assert (seq["pitch_type"], seq["previous_pitch_type"], seq["metric"]) == ("CH", "SI", "share_after_previous_pitch_type"), seq
+    assert results["curve is buried way more"]["previous_pitch_type"] is None

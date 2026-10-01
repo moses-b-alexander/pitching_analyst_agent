@@ -22,7 +22,7 @@ PITCH_CODES = (
 
 TESTS = ("proportion_vs_baseline", "two_window_proportion", "mean_shift", "trend", "none")
 
-# Every metric here must be computable from normalized pitches (models.Pitch).
+# Every metric here is computed in analytics.metrics, identically for tonight and the season baseline.
 METRICS = (
     "usage_share",
     "share_below_zone",
@@ -66,6 +66,8 @@ Tests:
 
 pitch_type is the pitch code the observation is about, or null if it is not about one pitch.
 metric is what to measure. Use "none" if nothing on the list fits.
+previous_pitch_type is null, except when the observation is about what he throws right after a
+specific pitch: then it is the code of that earlier pitch and metric is share_after_previous_pitch_type.
 
 Examples:
 "his curve looks way lower tonight" -> location_spatial, proportion_vs_baseline, CU, share_below_zone
@@ -73,7 +75,7 @@ Examples:
 "way more sliders than usual" -> usage_proportion, proportion_vs_baseline, SL, usage_share
 "slider is flatter than usual" -> continuous_shape, mean_shift, SL, horizontal_break
 "fastball is leaking middle" -> command_precision, proportion_vs_baseline, FF, share_heart_of_zone
-"he keeps going sinker after 4s" -> sequence_transition, proportion_vs_baseline, SI, share_after_previous_pitch_type
+"he keeps going sinker after 4s" -> sequence_transition, proportion_vs_baseline, SI, share_after_previous_pitch_type, previous_pitch_type FF
 "they're swinging flat" -> hitter_response, mean_shift, null, launch_angle"""
 
 CLASSIFY_SCHEMA = {
@@ -83,8 +85,9 @@ CLASSIFY_SCHEMA = {
         "test": {"type": "string", "enum": list(TESTS)},
         "pitch_type": {"type": ["string", "null"]},
         "metric": {"type": "string", "enum": list(METRICS)},
+        "previous_pitch_type": {"type": ["string", "null"]},
     },
-    "required": ["primary_class", "test", "pitch_type", "metric"],
+    "required": ["primary_class", "test", "pitch_type", "metric", "previous_pitch_type"],
 }
 
 

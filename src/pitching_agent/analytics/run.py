@@ -41,9 +41,11 @@ def _pct(x: float) -> str:
     return f"{100 * x:.1f}%"
 
 
-def _starts_line(baseline: pd.DataFrame, metric: str, pitch: str | None, tonight_value: float) -> str | None:
+def _starts_line(
+    baseline: pd.DataFrame, metric: str, pitch: str | None, tonight_value: float, previous: str | None = None
+) -> str | None:
     """Where tonight falls among his individual season starts (guards against significance theater)."""
-    games = metrics.per_game(baseline, metric, pitch)
+    games = metrics.per_game(baseline, metric, pitch, previous)
     if len(games) < 3:
         return None
     if metric in metrics.PROPORTION_METRICS:
@@ -70,7 +72,8 @@ def run_test(
     """`tonight` / `baseline` are metrics frames for one pitcher. `boundary_inning` is the last
     inning he had pitched in when the observation was made (0 = before his first pitch)."""
     test, metric, pitch = classification["test"], classification["metric"], classification.get("pitch_type")
-    what = f"{pitch or 'all pitches'} {metric}"
+    previous = classification.get("previous_pitch_type") if metric == metrics.SEQUENCE_METRIC else None
+    what = f"{pitch} after {previous}" if previous and pitch else f"{pitch or 'all pitches'} {metric}"
     is_rate = metric in metrics.PROPORTION_METRICS
     is_value = metric in metrics.CONTINUOUS_METRICS
 
@@ -80,6 +83,8 @@ def run_test(
         return TestReport(f"No test: {metric} is not computable yet.")
     if metric == "usage_share" and pitch is None:
         return TestReport("No test: usage needs a specific pitch type.")
+    if metric == metrics.SEQUENCE_METRIC and not (pitch and previous):
+        return TestReport("No test: a sequence needs both pitches, e.g. sinker after four-seam.")
     if tonight.empty:
         return TestReport("No test: he has not thrown a pitch yet.")
 
@@ -111,13 +116,13 @@ def run_test(
         )  # fmt: skip
 
     if is_rate:
-        k, n = metrics.proportion(window, metric, pitch)
+        k, n = metrics.proportion(window, metric, pitch, previous)
         if n == 0:
             return TestReport(f"No test: nothing to count for {what} in {_innings(window)}.")
         if test == "two_window_proportion":
             if not prospective:
                 return TestReport("No test: no pitches after the observation yet to compare against.")
-            k0, n0 = metrics.proportion(tonight[tonight["inning"] <= boundary_inning], metric, pitch)
+            k0, n0 = metrics.proportion(tonight[tonight["inning"] <= boundary_inning], metric, pitch, previous)
             if n0 == 0:
                 return TestReport(f"No test: nothing to count for {what} before the observation.")
             r = stat_tests.fisher_two_window((k0, n0), (k, n), alpha=alpha, inference_type=kind)
@@ -126,7 +131,7 @@ def run_test(
                 f"Later: {k}/{n} ({_pct(r.estimate)}) | Earlier: {k0}/{n0} ({_pct(r.baseline_estimate)}) | Effect: {100 * r.effect:+.1f} pp",
             ]
         else:
-            k0, n0 = metrics.proportion(baseline, metric, pitch)
+            k0, n0 = metrics.proportion(baseline, metric, pitch, previous)
             if n0 == 0:
                 return TestReport(f"No test: the season baseline has no {what} to compare against.")
             r = stat_tests.binomial_vs_baseline(k, n, k0 / n0, baseline_n=n0, alpha=alpha, inference_type=kind)
@@ -136,7 +141,7 @@ def run_test(
                 f"Baseline: {_pct(r.baseline_estimate)} (n={n0}) | Effect: {100 * r.effect:+.1f} pp"
                 f" | {100 * (1 - alpha):g}% CI {_pct(r.ci[0])} to {_pct(r.ci[1])}",
             ]
-            starts = _starts_line(baseline, metric, pitch, r.estimate)
+            starts = _starts_line(baseline, metric, pitch, r.estimate, previous)
             if starts:
                 lines.append(starts)
         return TestReport("\n".join([*lines, _verdict(r)]), r)

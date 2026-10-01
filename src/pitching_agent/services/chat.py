@@ -138,7 +138,10 @@ class Chat:
             c = await self.llm.chat_json(
                 [{"role": "system", "content": CLASSIFY_SYSTEM}, {"role": "user", "content": text}], CLASSIFY_SCHEMA
             )
-            lines.insert(1, f"Class: {c['primary_class']} | Test: {c['test']} ({c['pitch_type'] or 'any pitch'}, {c['metric']})")
+            subject = c["pitch_type"] or "any pitch"
+            if c.get("previous_pitch_type") and c["metric"] == metrics.SEQUENCE_METRIC:
+                subject += f" after {c['previous_pitch_type']}"
+            lines.insert(1, f"Class: {c['primary_class']} | Test: {c['test']} ({subject}, {c['metric']})")
             self._last = {"starter": s, "classification": c, "boundary": boundary, "text": text}
             if c["test"] != "none":
                 lines.insert(3, "Type /test to run it.")

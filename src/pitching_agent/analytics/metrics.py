@@ -18,7 +18,7 @@ from pitching_agent.models import Pitch
 COLUMNS = [
     "game", "inning", "at_bat_number", "pitch_number", "pitch_type", "release_speed", "pfx_x", "pfx_z",
     "plate_x", "plate_z", "sz_top", "sz_bot", "release_spin_rate", "release_pos_x", "release_pos_z",
-    "release_extension", "launch_angle", "launch_speed", "is_swing", "is_whiff",
+    "release_extension", "launch_angle", "launch_speed", "is_swing", "is_whiff", "prev_pitch_type",
 ]  # fmt: skip
 
 _SAVANT_WHIFF = {"swinging_strike", "swinging_strike_blocked"}
@@ -34,7 +34,15 @@ def savant_frame(df: pd.DataFrame) -> pd.DataFrame:
     out["is_whiff"] = out["description"].isin(_SAVANT_WHIFF)
     # Savant also reports exit velocity / launch angle on fouls; the live feed only on balls in play.
     out.loc[out["description"] != "hit_into_play", ["launch_angle", "launch_speed"]] = float("nan")
-    return out.sort_values(["game_date", "at_bat_number", "pitch_number"])[COLUMNS].reset_index(drop=True)
+    out = out.sort_values(["game_date", "game", "at_bat_number", "pitch_number"])
+    return _with_previous(out)[COLUMNS].reset_index(drop=True)
+
+
+def _with_previous(df: pd.DataFrame) -> pd.DataFrame:
+    """Add the type of the pitch thrown just before, within the same plate appearance (None on the first pitch)."""
+    df = df.copy()
+    df["prev_pitch_type"] = df.groupby(["game", "at_bat_number"], sort=False)["pitch_type"].shift(1)
+    return df
 
 
 def _swing(description: str | None) -> tuple[bool, bool]:
@@ -55,12 +63,17 @@ def tonight_frame(pitches: Iterable[Pitch], pitcher_id: int) -> pd.DataFrame:
              p.plate_x, p.plate_z, p.sz_top, p.sz_bot, p.spin_rate, p.release_pos_x, p.release_pos_z,
              p.release_extension, p.launch_angle, p.launch_speed, swing, whiff)
         )  # fmt: skip
-    return pd.DataFrame(rows, columns=COLUMNS)
+    df = pd.DataFrame(rows, columns=COLUMNS[:-1]).sort_values(["at_bat_number", "pitch_number"])
+    return _with_previous(df)[COLUMNS].reset_index(drop=True)
 
 
 # -- definitions --------------------------------------------------------------
 
-PROPORTION_METRICS = ("usage_share", "share_below_zone", "share_above_zone", "share_in_zone", "share_heart_of_zone", "whiff_rate")  # fmt: skip
+SEQUENCE_METRIC = "share_after_previous_pitch_type"
+PROPORTION_METRICS = (
+    "usage_share", "share_below_zone", "share_above_zone", "share_in_zone", "share_heart_of_zone", "whiff_rate",
+    SEQUENCE_METRIC,
+)  # fmt: skip
 
 # metric -> (column, multiplier, unit)
 CONTINUOUS_METRICS = {
@@ -79,8 +92,17 @@ def _of_type(df: pd.DataFrame, pitch_type: str | None) -> pd.DataFrame:
     return df if pitch_type is None else df[df["pitch_type"] == pitch_type]
 
 
-def proportion(df: pd.DataFrame, metric: str, pitch_type: str | None) -> tuple[int, int]:
-    """(successes, n) for a rate metric."""
+def proportion(df: pd.DataFrame, metric: str, pitch_type: str | None, previous: str | None = None) -> tuple[int, int]:
+    """(successes, n) for a rate metric.
+
+    The sequence metric is: of the pitches thrown right after a `previous`-type pitch in the
+    same plate appearance, the share that were `pitch_type`.
+    """
+    if metric == SEQUENCE_METRIC:
+        if pitch_type is None or previous is None:
+            raise ValueError("the sequence metric needs both the pitch and the pitch before it")
+        followers = df[df["prev_pitch_type"] == previous]
+        return int((followers["pitch_type"] == pitch_type).sum()), len(followers)
     if metric == "usage_share":
         if pitch_type is None:
             raise ValueError("usage_share needs a pitch type")
@@ -118,7 +140,9 @@ def unit(metric: str) -> str:
     return CONTINUOUS_METRICS[metric][2]
 
 
-def per_game(df: pd.DataFrame, metric: str, pitch_type: str | None, *, min_n: int = 5) -> np.ndarray:
+def per_game(
+    df: pd.DataFrame, metric: str, pitch_type: str | None, previous: str | None = None, *, min_n: int = 5
+) -> np.ndarray:
     """The metric computed separately for each game in `df` (rate or mean), skipping games with under `min_n` readings.
 
     Pitches within a start are not independent draws from the season, so this spread,
@@ -127,7 +151,7 @@ def per_game(df: pd.DataFrame, metric: str, pitch_type: str | None, *, min_n: in
     out = []
     for _, game in df.groupby("game", sort=False):
         if metric in PROPORTION_METRICS:
-            k, n = proportion(game, metric, pitch_type)
+            k, n = proportion(game, metric, pitch_type, previous)
             if n >= min_n:
                 out.append(k / n)
         else:

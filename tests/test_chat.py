@@ -18,7 +18,8 @@ class FakeModel:
     async def chat_json(self, messages, schema):
         if self.fail:
             raise LLMUnavailable("down")
-        return {"primary_class": "location_spatial", "test": "proportion_vs_baseline", "pitch_type": "ST", "metric": "share_below_zone"}
+        return {"primary_class": "location_spatial", "test": "proportion_vs_baseline", "pitch_type": "ST",
+                "metric": "share_below_zone", "previous_pitch_type": None}  # fmt: skip
 
     async def chat(self, messages, **kwargs):
         self.prompts.append(messages[-1]["content"])
