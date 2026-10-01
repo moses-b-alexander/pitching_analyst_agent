@@ -7,7 +7,6 @@ The model is optional: without it the observation is still saved.
 
 from __future__ import annotations
 
-import re
 import sqlite3
 from typing import Any, Protocol
 
@@ -20,6 +19,7 @@ from pitching_agent.llm.client import LLMUnavailable
 from pitching_agent.llm.prompts import CLASSIFY_SCHEMA, CLASSIFY_SYSTEM, PITCH_CODES
 from pitching_agent.services.tracker import GameTracker, StarterTrack
 from pitching_agent.store import add_observation, clear_game, observations, touch_game
+from pitching_agent.text import GENERIC, tokens
 
 REPLY_SYSTEM = (
     "You are a pitching analyst sitting next to a viewer watching a live MLB game. "
@@ -34,8 +34,6 @@ TEST_SYSTEM = (
 
 TEST_REQUESTS = {"/test", "test it", "test that", "run it", "run the test"}
 
-# Team-name words too generic to identify a team on their own.
-_GENERIC = {"new", "los", "san", "st", "city", "bay", "red", "white", "blue", "the"}
 
 
 class ChatModel(Protocol):
@@ -44,13 +42,9 @@ class ChatModel(Protocol):
     async def chat_json(self, messages: list[dict[str, str]], schema: dict[str, Any]) -> dict[str, Any]: ...
 
 
-def _tokens(text: str) -> list[str]:
-    return re.findall(r"[a-z0-9]+", text.lower())
-
-
 def _keys(s: StarterTrack) -> set[str]:
     """Words that identify this starter: last name, team abbreviation, team name words."""
-    return ({_tokens(s.name)[-1], s.team.lower()} | set(_tokens(s.team_name))) - _GENERIC
+    return ({tokens(s.name)[-1], s.team.lower()} | set(tokens(s.team_name))) - GENERIC
 
 
 class Chat:
@@ -74,7 +68,7 @@ class Chat:
         self._last: dict[str, Any] | None = None  # most recent classified observation, for /test
 
     def _named(self, text: str) -> list[StarterTrack]:
-        words = set(_tokens(text))
+        words = set(tokens(text))
         return [s for s in self.tracker.candidates() if words & _keys(s)]
 
     async def handle(self, text: str) -> str:
@@ -101,7 +95,7 @@ class Chat:
             return "No starters known for this game yet."
         named = self._named(text)
 
-        if self._pending is not None and len(named) == 1 and len(_tokens(text)) <= 3:
+        if self._pending is not None and len(named) == 1 and len(tokens(text)) <= 3:
             text, self._pending = self._pending, None  # the reply was just the name
         elif len(named) != 1:
             self._pending = text

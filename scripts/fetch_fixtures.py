@@ -39,6 +39,10 @@ JSON_FIXTURES = {
     f"feed_{GAME}_final.json.gz": (FEED, None),
     f"feed_{GAME}_{MID_TIMECODE}.json.gz": (FEED, {"timecode": MID_TIMECODE}),
     f"box_{GAME}.json.gz": (f"https://statsapi.mlb.com/api/v1/game/{GAME}/boxscore", None),
+    "schedule_2026-09-25.json.gz": (
+        "https://statsapi.mlb.com/api/v1/schedule",
+        {"sportId": 1, "date": "2026-09-25", "hydrate": "probablePitcher,team"},
+    ),
 }
 
 

@@ -5,9 +5,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+
+import httpx  # noqa: E402
 
 from pitching_agent import __version__  # noqa: E402
 from pitching_agent.analytics.lines import window_hits, window_line, window_mix  # noqa: E402
@@ -17,6 +20,7 @@ from pitching_agent.llm.client import LLMClient  # noqa: E402
 from pitching_agent.services.chat import Chat  # noqa: E402
 from pitching_agent.services.live import ReplaySource, run_live  # noqa: E402
 from pitching_agent.services.pregame import Baselines  # noqa: E402
+from pitching_agent.services.resolve import describe, match_games, pick  # noqa: E402
 from pitching_agent.sources.savant import SavantAdapter  # noqa: E402
 from pitching_agent.services.tracker import GameTracker, Output  # noqa: E402
 from pitching_agent.sources import mlb  # noqa: E402
@@ -125,11 +129,54 @@ def _replay_sleep(delay: float):
     return sleep
 
 
+async def find_game(teams: list[str], on: date | None) -> int | None:
+    """Resolve team names to a gamePk, printing what was found. None if there is no single answer."""
+    adapter = mlb.MLBStatsAdapter()
+    try:
+        days = [on] if on else [date.today()]
+        if on is None and datetime.now().hour < 6:
+            days.insert(0, days[0] - timedelta(days=1))  # a late game may still be running after midnight
+        query = " ".join(teams)
+        for i, day in enumerate(days):
+            games = await adapter.resolve_games(day)
+            matches = match_games(games, query) if teams else []
+            if i < len(days) - 1:  # yesterday only counts if that game is still in progress
+                matches = [g for g in matches if g["status"]["abstractGameState"] == "Live"]
+                if not matches:
+                    continue
+            chosen = pick(matches)
+            if chosen:
+                print(f"Following: {describe(chosen)}")
+                return chosen["gamePk"]
+            if matches:
+                matchups = {(g["teams"]["away"]["team"]["id"], g["teams"]["home"]["team"]["id"]) for g in matches}
+                if len(matchups) == 1:
+                    print(f"Both games of that doubleheader on {day} are over. Pick one with --game:")
+                else:
+                    print(f"More than one game on {day} fits {query!r}. Name both teams or use --game:")
+                listing = matches
+            elif teams:
+                print(f"No game on {day} fits {query!r}. Games that day:")
+                listing = games
+            else:
+                print(f"Games on {day} (name a team, or use --game):")
+                listing = games
+            for g in sorted(listing, key=lambda g: g["gameDate"]):
+                print("  " + describe(g))
+            if not listing:
+                print("  none")
+        return None
+    finally:
+        await adapter.aclose()
+
+
 def main(argv: list[str] | None = None) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")  # stat lines use "·"; Windows consoles default to cp1252
     parser = argparse.ArgumentParser(description="Live starting-pitching analyst")
-    parser.add_argument("--game", type=int, help="MLB gamePk")
+    parser.add_argument("teams", nargs="*", help="team name(s), e.g. twins or TEX MIN; lists the day's games if omitted")
+    parser.add_argument("--game", type=int, help="MLB gamePk (instead of team names)")
+    parser.add_argument("--date", type=date.fromisoformat, help="game date YYYY-MM-DD (default: today)")
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--once", action="store_true", help="fetch once and print starter lines")
     parser.add_argument(
@@ -156,8 +203,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Cleared game {args.clear_game}: {clear_game(conn, args.clear_game)} observations")
         return 0
     if args.game is None:
-        print("No --game given.")
-        return 0
+        try:
+            args.game = asyncio.run(find_game(args.teams, args.date))
+        except httpx.HTTPError as e:
+            print(f"Could not reach the MLB schedule ({type(e).__name__}). Try again, or use --game.")
+            return 1
+        if args.game is None:
+            return 1 if args.teams else 0
     if args.once:
         asyncio.run(snapshot(conn, args.game))
         return 0

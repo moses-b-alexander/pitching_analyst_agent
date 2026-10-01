@@ -77,9 +77,11 @@ The stat lines work with no model configured.
 pip install -e ".[dev]"
 python scripts/fetch_fixtures.py   # test data (MLB-licensed; not committed)
 pytest
-python agent.py --game <gamePk>            # follow a game live
-python agent.py --game <gamePk> --replay   # replay a finished game offline, play by play
-python agent.py --game <gamePk> --once     # one snapshot of both starters' lines
+python agent.py                            # list today's games
+python agent.py twins                      # follow today's Twins game live
+python agent.py rangers twins --date 2026-09-25 --replay   # replay a finished game, play by play
+python agent.py twins --once               # one snapshot of both starters' lines
+python agent.py --game <gamePk>            # or name the game by its MLB id
 ```
 
 For model interpretation (optional; stat lines work without it), install [Ollama](https://ollama.com) and run:
@@ -109,7 +111,7 @@ ollama create qwen3:8b-8k -f ollama/Modelfile   # same weights, 8,192-token cont
 │   ├── sources/   mlb · savant
 │   ├── analytics/ features · windows · lines · metrics · stat_tests · run
 │   ├── llm/       client · prompts
-│   └── services/  tracker · live · chat · pregame · reconciliation · hypothesis
+│   └── services/  tracker · live · chat · pregame · resolve · reconciliation · hypothesis
 ├── scripts/
 │   └── fetch_fixtures.py    downloads test data locally
 ├── tests/
@@ -134,6 +136,7 @@ Done   Chat input while the game runs: name a starter or team, the observation i
 Done   Savant season baseline per starter (re-pulled each game, cached fallback) + pregame lines
 Done   /test: runs the test the model picked, in code, against the season baseline
 Done   Sequence metric: what he throws right after a given pitch
+Done   Find the game by team name (today by default); no game id needed
 ```
 
 ---
