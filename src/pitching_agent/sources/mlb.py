@@ -70,13 +70,27 @@ class MLBStatsAdapter:
         data = await self._get(f"/api/v1/people/{player_id}")
         return data["people"][0]
 
-    async def season_stats(self, player_id: int, season: int, game_type: str = "R") -> dict[str, Any] | None:
-        """Season pitching totals (game_type "R" regular season, "P" postseason); None if he has none."""
-        data = await self._get(
-            f"/api/v1/people/{player_id}/stats", stats="season", group="pitching", season=season, gameType=game_type
-        )
-        splits = (data.get("stats") or [{}])[0].get("splits") or []
-        return splits[0]["stat"] if splits else None
+    async def game_log(self, player_id: int, season: int) -> list[dict[str, Any]]:
+        """Every pitching appearance that season, regular season and postseason, oldest first.
+
+        Each entry: {"date", "game_id", "postseason", "stat"} where stat has outs, earnedRuns,
+        strikeOuts, baseOnBalls, ...
+        """
+        games = []
+        for game_type in ("R", "P"):
+            data = await self._get(
+                f"/api/v1/people/{player_id}/stats", stats="gameLog", group="pitching", season=season, gameType=game_type
+            )
+            for split in (data.get("stats") or [{}])[0].get("splits") or []:
+                games.append(
+                    {
+                        "date": split["date"],
+                        "game_id": split["game"]["gamePk"],
+                        "postseason": game_type == "P",
+                        "stat": split["stat"],
+                    }
+                )
+        return sorted(games, key=lambda g: (g["date"], g["game_id"]))
 
     async def pitcher_line(self, game_id: int, pitcher_id: int) -> PitcherLine | None:
         return box_line(await self.boxscore(game_id), pitcher_id)

@@ -21,12 +21,16 @@ from pitching_agent.sources.mlb import GameInfo, MLBStatsAdapter
 from pitching_agent.sources.savant import SavantAdapter, SavantUnavailable
 
 
-def format_season(stat: dict[str, Any] | None) -> str:
-    if not stat:
-        return "none"
-    return SEP.join(
-        [f"{stat['inningsPitched']} IP", f"{stat['era']} ERA", f"{stat['strikeOuts']} K", f"{stat['baseOnBalls']} BB"]
-    )
+def format_to_date(games: list[dict[str, Any]], *, before_date: str, exclude_game: int) -> str:
+    """Running totals through his last appearance before tonight: regular season and postseason together."""
+    prior = [g for g in games if g["game_id"] != exclude_game and g["date"] <= before_date]
+    if not prior:
+        return "Season to date: no appearances before tonight"
+    outs, er, k, bb = (sum(g["stat"][f] for g in prior) for f in ("outs", "earnedRuns", "strikeOuts", "baseOnBalls"))
+    era = f"{27 * er / outs:.2f}" if outs else "-.--"
+    line = SEP.join([f"{len(prior)} G", f"{outs // 3}.{outs % 3} IP", f"{era} ERA", f"{k} K", f"{bb} BB"])
+    post = sum(g["postseason"] for g in prior)
+    return f"Season to date: {line}" + (f" (incl. {post} postseason G)" if post else "")
 
 
 def format_season_mix(frame: pd.DataFrame) -> str:
@@ -61,9 +65,8 @@ class Baselines:
         season = int(info.date[:4])
         lines = [f"PREGAME {s.name} ({s.team})"]
         try:
-            regular = await self._mlb.season_stats(s.pitcher_id, season, "R")
-            post = await self._mlb.season_stats(s.pitcher_id, season, "P")
-            lines.append(f"Season: {format_season(regular)} | Postseason: {format_season(post)}")
+            games = await self._mlb.game_log(s.pitcher_id, season)
+            lines.append(format_to_date(games, before_date=info.date, exclude_game=info.game_id))
         except httpx.HTTPError:
             lines.append("Season line unavailable.")
         try:

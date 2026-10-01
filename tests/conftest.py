@@ -46,5 +46,11 @@ def savant_season_ryan():
 
 
 @pytest.fixture(scope="session")
+def savant_heart_ryan():
+    """The pitches Savant's own attack-zone filter (heart, zones 1-9) returns for Ryan's 2026 season."""
+    return pd.read_csv(_require(f"savant_heart_2026_{RYAN}.csv.gz"))
+
+
+@pytest.fixture(scope="session")
 def savant_ryan():
     return pd.read_csv(_require(f"savant_{GAME}_{RYAN}.csv.gz"))

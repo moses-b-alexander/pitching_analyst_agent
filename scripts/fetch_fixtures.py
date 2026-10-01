@@ -64,6 +64,8 @@ def main() -> None:
         for name, url in {
             f"savant_{GAME}_{RYAN}.csv.gz": SAVANT,
             f"savant_season_2026_{RYAN}.csv.gz": SAVANT_SEASON,
+            # Savant's own "heart" attack-zone filter (zones 1-9), to check our definition against
+            f"savant_heart_2026_{RYAN}.csv.gz": SAVANT_SEASON + "&hfNewZones=" + "".join(f"{i}%7C" for i in range(1, 10)),
         }.items():
             path = OUT / name
             if path.exists() and not args.force:

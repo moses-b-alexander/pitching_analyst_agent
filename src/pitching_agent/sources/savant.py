@@ -67,7 +67,7 @@ class SavantAdapter:
         return df
 
     async def baseline(self, pitcher_id: int, season: int, *, before_date: str, exclude_game: int) -> pd.DataFrame:
-        """Regular season + postseason pitches thrown before `before_date`, never including tonight's game."""
+        """Running corpus: every regular-season and postseason pitch through `before_date`, never tonight's game."""
         frames = [await self.pitcher_corpus(pitcher_id, season, REGULAR_SEASON)]
         try:
             frames.append(await self.pitcher_corpus(pitcher_id, season, POSTSEASON))
@@ -80,7 +80,7 @@ class SavantAdapter:
         if not frames:
             return pd.DataFrame()
         df = pd.concat(frames, ignore_index=True)
-        df = df[(df["game_date"] < before_date) & (df["game_pk"] != exclude_game)].reset_index(drop=True)
+        df = df[(df["game_date"] <= before_date) & (df["game_pk"] != exclude_game)].reset_index(drop=True)
         df.attrs["stale"] = stale
         return df
 

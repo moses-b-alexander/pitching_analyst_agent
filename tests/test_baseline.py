@@ -12,7 +12,7 @@ from pitching_agent.analytics import metrics, stat_tests
 from pitching_agent.analytics.run import run_test
 from pitching_agent.models import InferenceType
 from pitching_agent.services.chat import Chat
-from pitching_agent.services.pregame import Baselines, format_season, format_season_mix
+from pitching_agent.services.pregame import Baselines, format_season_mix, format_to_date
 from pitching_agent.services.tracker import GameTracker
 from pitching_agent.sources import mlb
 from pitching_agent.sources.savant import SavantAdapter, SavantUnavailable
@@ -152,7 +152,7 @@ def test_baseline_excludes_tonight_and_caches(tmp_path, savant_season_ryan):
         return httpx.Response(200, content=csv if request.url.params["hfGT"] == "R|" else b"")
 
     df = asyncio.run(_savant(tmp_path, handler).baseline(RYAN, 2026, before_date=GAME_DATE, exclude_game=GAME))
-    assert len(df) == 2340 and GAME not in set(df.game_pk) and df.game_date.max() < GAME_DATE
+    assert len(df) == 2340 and GAME not in set(df.game_pk) and df.game_date.max() < GAME_DATE  # only game that day
     assert [p["hfGT"] for p in seen] == ["R|", "PO|"]
     assert seen[0]["hfSea"] == "2026|" and seen[0]["pitchers_lookup[]"] == str(RYAN)
     assert (tmp_path / f"savant_{RYAN}_2026_R.csv.gz").exists()
@@ -175,11 +175,17 @@ def test_no_cache_and_no_network_raises(tmp_path):
 # -- pregame + chat ------------------------------------------------------------------
 
 
+def _game(date, game_id, outs, er, k, bb, postseason=False):
+    return {"date": date, "game_id": game_id, "postseason": postseason,
+            "stat": {"outs": outs, "earnedRuns": er, "strikeOuts": k, "baseOnBalls": bb}}  # fmt: skip
+
+
+LOG = [_game("2026-09-14", 1, 21, 1, 9, 1), _game("2026-09-20", 2, 18, 3, 6, 2), _game(GAME_DATE, GAME, 18, 2, 8, 1)]
+
+
 class FakeMLB:
-    async def season_stats(self, player_id, season, game_type="R"):
-        if game_type == "P":
-            return None
-        return {"inningsPitched": "144.2", "era": "3.79", "strikeOuts": 159, "baseOnBalls": 31}
+    async def game_log(self, player_id, season):
+        return LOG if player_id == RYAN else []
 
 
 class FakeSavant:
@@ -192,15 +198,32 @@ class FakeSavant:
         if pitcher_id != RYAN:
             return pd.DataFrame()
         s = self.season
-        df = s[(s.game_date < before_date) & (s.game_pk != exclude_game)].reset_index(drop=True)
+        df = s[(s.game_date <= before_date) & (s.game_pk != exclude_game)].reset_index(drop=True)
         df.attrs["stale"] = False
         return df
 
 
-def test_formatters(baseline):
-    assert format_season({"inningsPitched": "144.2", "era": "3.79", "strikeOuts": 159, "baseOnBalls": 31}) == "144.2 IP · 3.79 ERA · 159 K · 31 BB"
-    assert format_season(None) == "none"
+def test_running_totals_stop_before_tonight_and_fold_in_postseason(baseline):
+    # 39 outs, 4 ER through the two earlier games; tonight's game is never counted
+    assert format_to_date(LOG, before_date=GAME_DATE, exclude_game=GAME) == "Season to date: 2 G · 13.0 IP · 2.77 ERA · 15 K · 3 BB"
+    october = [*LOG, _game("2026-10-02", 9, 20, 0, 10, 0, postseason=True)]
+    assert format_to_date(october, before_date="2026-10-07", exclude_game=77) == (
+        "Season to date: 4 G · 25.2 IP · 2.10 ERA · 33 K · 4 BB (incl. 1 postseason G)"
+    )
+    assert format_to_date([], before_date=GAME_DATE, exclude_game=GAME) == "Season to date: no appearances before tonight"
     assert format_season_mix(baseline) == "Mix: FF 44% · SI 10% · SL 7% · ST 16% · KC 11% · FS 12% (2,338 pitches)"
+
+
+def test_heart_zone_is_exactly_savants(savant_season_ryan, savant_heart_ryan):
+    """Our heart definition against the pitches Savant's own attack-zone filter returns for the season."""
+    key = ["game_pk", "at_bat_number", "pitch_number"]
+    season = savant_season_ryan.dropna(subset=["plate_x", "plate_z", "sz_top", "sz_bot"])
+    savant_says = season.set_index(key).index.isin(savant_heart_ryan.set_index(key).index)
+    assert savant_says.sum() == len(savant_heart_ryan) == 657
+    for flag in (True, False):  # every Savant-heart pitch is ours, and none of the others are
+        subset = metrics.savant_frame(season[savant_says == flag])
+        k, n = metrics.proportion(subset, "share_heart_of_zone", None)
+        assert (k, n) == ((n, n) if flag else (0, n))
 
 
 def test_pregame_loads_each_starter_once_and_reports_gaps(final_feed, savant_season_ryan):
@@ -216,7 +239,7 @@ def test_pregame_loads_each_starter_once_and_reports_gaps(final_feed, savant_sea
     baselines, out = asyncio.run(run(FakeSavant(savant_season_ryan)))
     assert len(out) == 2
     assert out["PREGAME Joe Ryan (MIN)"] == [
-        "Season: 144.2 IP · 3.79 ERA · 159 K · 31 BB | Postseason: none",
+        "Season to date: 2 G · 13.0 IP · 2.77 ERA · 15 K · 3 BB",
         "Mix: FF 44% · SI 10% · SL 7% · ST 16% · KC 11% · FS 12% (2,338 pitches)",
     ]
     assert out["PREGAME Jacob deGrom (TEX)"][1] == "No season pitch data before this game; baseline tests unavailable."

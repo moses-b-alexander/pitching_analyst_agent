@@ -133,7 +133,7 @@ Done   Chat input while the game runs: name a starter or team, the observation i
        classified, and answered; /status, /obs, /clear, /quit
 Done   Savant season baseline per starter (re-pulled each game, cached fallback) + pregame lines
 Done   /test: runs the test the model picked, in code, against the season baseline
-Next   Sequence metric (pitch after pitch); opener / bullpen-game detection
+Next   Sequence metric (pitch after pitch)
 ```
 
 ---

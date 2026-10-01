@@ -100,7 +100,9 @@ def proportion(df: pd.DataFrame, metric: str, pitch_type: str | None) -> tuple[i
         hit = (x.abs() <= PLATE_HALF_WIDTH_FT + BALL_RADIUS_FT) & (z >= bot - BALL_RADIUS_FT) & (z <= top + BALL_RADIUS_FT)
     elif metric == "share_heart_of_zone":
         mid, half_height = (top + bot) / 2, (top - bot) / 2
-        hit = (x.abs() <= PLATE_HALF_WIDTH_FT * HEART_FRACTION) & ((z - mid).abs() <= half_height * HEART_FRACTION)
+        hit = (x.abs() <= (PLATE_HALF_WIDTH_FT + BALL_RADIUS_FT) * HEART_FRACTION) & (
+            (z - mid).abs() <= (half_height + BALL_RADIUS_FT) * HEART_FRACTION
+        )
     else:
         raise ValueError(f"not a proportion metric: {metric}")
     return int(hit.sum()), len(loc)
