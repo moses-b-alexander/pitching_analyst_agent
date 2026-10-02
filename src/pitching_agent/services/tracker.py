@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from pitching_agent.analytics.lines import window_hits, window_line, window_mix
+from pitching_agent.analytics.lines import window_hits, window_line, window_mix, window_mix_by_hand
 from pitching_agent.analytics.windows import InningWindow
 from pitching_agent.compositor import capsule
 from pitching_agent.models import Half, Pitch, PlateAppearance
@@ -119,12 +119,14 @@ class GameTracker:
         return max((p.inning for p in self._pitches if p.pitcher_id == s.pitcher_id), default=0)
 
     def starter_capsule(self, s: StarterTrack, *, provisional: bool = False) -> str:
+        """His whole outing so far: the three fixed lines, mix split by batter side."""
         return capsule(
             window_line(self._pitches, self._pas, s.pitcher_id),
             window_mix(self._pitches, s.pitcher_id),
             window_hits(self._pas, s.pitcher_id),
             include_ip=True,
             mix_provisional=provisional,
+            mix_by_hand=window_mix_by_hand(self._pitches, s.pitcher_id),
         )
 
     # -- update -------------------------------------------------------------
@@ -193,6 +195,7 @@ class GameTracker:
                 window_line(self._pitches, self._pas, s.pitcher_id, window),
                 window_mix(self._pitches, s.pitcher_id, window),
                 window_hits(self._pas, s.pitcher_id, window),
+                mix_by_hand=window_mix_by_hand(self._pitches, s.pitcher_id, window),
             )
             outputs.append(Output("capsule", f"{s.label} {_half_label(k)}\n{body}", s.pitcher_id))
         return outputs

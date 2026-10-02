@@ -6,7 +6,7 @@ Always scoped to one pitcher, so a window never spans a pitching change (archite
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 from pitching_agent.analytics.windows import InningWindow
 from pitching_agent.models import Pitch, PitcherLine, PlateAppearance
@@ -54,6 +54,23 @@ def window_mix(pitches: Iterable[Pitch], pitcher_id: int, window: InningWindow |
     counts = Counter(types)
     rank = {t: i for i, t in enumerate(PITCH_ORDER)}
     return {t: counts[t] for t in sorted(counts, key=lambda t: (rank.get(t, len(rank)), t))}
+
+
+def order_mix(counts: Mapping[str, int]) -> dict[str, int]:
+    """Pitch-type counts in display order."""
+    rank = {t: i for i, t in enumerate(PITCH_ORDER)}
+    return {t: counts[t] for t in sorted(counts, key=lambda t: (rank.get(t, len(rank)), t))}
+
+
+def window_mix_by_hand(
+    pitches: Iterable[Pitch], pitcher_id: int, window: InningWindow | None = None
+) -> dict[str, dict[str, int]]:
+    """Mix against left-handed and right-handed batters (classified pitches only). Keys L, R."""
+    out: dict[str, Counter] = {"L": Counter(), "R": Counter()}
+    for p in pitches:
+        if p.pitcher_id == pitcher_id and _in(window, p.inning) and p.pitch_type and p.stand in out:
+            out[p.stand][p.pitch_type] += 1
+    return {hand: order_mix(counts) for hand, counts in out.items()}
 
 
 def window_hits(pas: Iterable[PlateAppearance], pitcher_id: int, window: InningWindow | None = None) -> list[str]:

@@ -267,6 +267,7 @@ def normalize(feed: dict[str, Any]) -> tuple[list[Pitch], list[PlateAppearance]]
                         launch_angle=hd.get("launchAngle"),
                         timestamp=_ts(ev.get("startTime")),
                         play_id=ev.get("playId"),
+                        stand=matchup["batSide"]["code"],
                         **geo,
                     )
                 )

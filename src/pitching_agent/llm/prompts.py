@@ -66,6 +66,8 @@ Tests:
 
 pitch_type is the pitch code the observation is about, or null if it is not about one pitch.
 metric is what to measure. Use "none" if nothing on the list fits.
+batter_hand is "L" or "R" when the observation is only about left-handed or right-handed batters
+("to lefties", "against righties"); otherwise null.
 previous_pitch_type is null, except when the observation is about what he throws right after a
 specific pitch: then it is the code of that earlier pitch and metric is share_after_previous_pitch_type.
 
@@ -76,7 +78,8 @@ Examples:
 "slider is flatter than usual" -> continuous_shape, mean_shift, SL, horizontal_break
 "fastball is leaking middle" -> command_precision, proportion_vs_baseline, FF, share_heart_of_zone
 "he keeps going sinker after 4s" -> sequence_transition, proportion_vs_baseline, SI, share_after_previous_pitch_type, previous_pitch_type FF
-"they're swinging flat" -> hitter_response, mean_shift, null, launch_angle"""
+"they're swinging flat" -> hitter_response, mean_shift, null, launch_angle
+"lefties are getting nothing but changeups" -> matchup_interaction, proportion_vs_baseline, CH, usage_share, batter_hand L"""
 
 CLASSIFY_SCHEMA = {
     "type": "object",
@@ -86,8 +89,9 @@ CLASSIFY_SCHEMA = {
         "pitch_type": {"type": ["string", "null"]},
         "metric": {"type": "string", "enum": list(METRICS)},
         "previous_pitch_type": {"type": ["string", "null"]},
+        "batter_hand": {"type": ["string", "null"], "enum": ["L", "R", None]},
     },
-    "required": ["primary_class", "test", "pitch_type", "metric", "previous_pitch_type"],
+    "required": ["primary_class", "test", "pitch_type", "metric", "previous_pitch_type", "batter_hand"],
 }
 
 

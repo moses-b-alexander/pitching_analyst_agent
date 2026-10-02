@@ -37,10 +37,12 @@ The products are the same as in the plugin:
 1. **Stat Line** (ground truth). Composed entirely in code.
 
    ```text
-   Line: 17 P · 11S/6B | 1 R · 3 H | 2 K · 1 BB
-   Mix: 4S 8 (47%) · SI 3 (18%) · FC 2 (12%) · CU 4 (24%)
-   Hits: S8 · S7 · D9
+   Line: 28 P · 19S/9B | 2 R · 2 H | 0 K · 0 BB
+   Mix (L/R 12/16): FF 4/7 (39%) · SI 0/1 (4%) · SL 0/1 (4%) · ST 3/6 (32%) · KC 1/1 (7%) · FS 4/0 (14%)
+   Hits: D8 · S9
    ```
+
+   In the Mix line each pitch shows its count to left-handed / right-handed batters, then its share of all pitches.
 
 2. **Summary**: an evolving baseball model, with a small set of persistent theses.
 3. **Analyst**: turns an observation into a statistical question, so a casual remark becomes a testable hypothesis.
@@ -138,6 +140,7 @@ Done   Savant season baseline per starter (re-pulled each game, cached fallback)
 Done   /test: runs the test the model picked, in code, against the season baseline
 Done   Sequence metric: what he throws right after a given pitch
 Done   Find the game by team name (today by default, or --latest for their most recent game)
+Done   Left/right batter splits in every mix line (pregame, per inning, final) and as a test condition
 ```
 
 ---

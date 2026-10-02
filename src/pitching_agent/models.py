@@ -62,6 +62,7 @@ class Pitch:
     launch_angle: float | None = None
     timestamp: datetime | None = None
     play_id: str | None = None
+    stand: str | None = None  # batter side for this plate appearance: L or R
 
 
 @dataclass

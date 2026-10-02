@@ -88,6 +88,15 @@ def run_test(
     if tonight.empty:
         return TestReport("No test: he has not thrown a pitch yet.")
 
+    hand = classification.get("batter_hand")
+    if hand in ("L", "R"):  # compare like with like: tonight vs that side against his season vs that side
+        tonight = tonight[tonight["stand"] == hand]
+        if baseline is not None:
+            baseline = baseline[baseline["stand"] == hand]
+        what += f" vs {hand}HB"
+        if tonight.empty:
+            return TestReport(f"No test: he has not faced a {hand}HB yet.")
+
     after = tonight[tonight["inning"] > boundary_inning]
     prospective = not after.empty
     window = after if prospective else tonight

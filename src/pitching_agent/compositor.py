@@ -51,13 +51,31 @@ def format_line(line: PitcherLine, *, include_ip: bool = False) -> str:
     return f"Line: {count} | {runs}{SEP}{line.hits} H | {line.strikeouts} K{SEP}{line.walks} BB"
 
 
-def format_mix(counts: Mapping[str, int] | None, *, provisional: bool = False) -> str:
-    """`Mix: 4S 8 (47%) · SI 3 (18%)` in the caller's order (the pitcher's arsenal order)."""
+def format_mix(
+    counts: Mapping[str, int] | None,
+    *,
+    by_hand: Mapping[str, Mapping[str, int]] | None = None,
+    provisional: bool = False,
+) -> str:
+    """`Mix: FF 8 (47%) · SI 3 (18%)` in the caller's order (the pitcher's arsenal order).
+
+    With `by_hand` ({"L": counts, "R": counts}) each pitch shows its count to left-handed and
+    right-handed batters, and the header shows the totals:
+    `Mix (L/R 12/16): FF 4/7 (39%) · ST 3/6 (32%)`. The percentage is always of all pitches.
+    """
     if not counts:
         return "Mix: exact counts pending"
     total = sum(counts.values())
-    body = SEP.join(f"{pt} {n} ({_pct(n, total)}%)" for pt, n in counts.items())
-    return f"Mix: {body}" + (" [provisional]" if provisional else "")
+    if by_hand is None:
+        label = "Mix"
+        body = SEP.join(f"{pt} {n} ({_pct(n, total)}%)" for pt, n in counts.items())
+    else:
+        left, right = by_hand.get("L", {}), by_hand.get("R", {})
+        label = f"Mix (L/R {sum(left.values())}/{sum(right.values())})"
+        body = SEP.join(
+            f"{pt} {left.get(pt, 0)}/{right.get(pt, 0)} ({_pct(n, total)}%)" for pt, n in counts.items()
+        )
+    return f"{label}: {body}" + (" [provisional]" if provisional else "")
 
 
 def format_hits(hits: Sequence[str]) -> str:
@@ -72,11 +90,12 @@ def capsule(
     *,
     include_ip: bool = False,
     mix_provisional: bool = False,
+    mix_by_hand: Mapping[str, Mapping[str, int]] | None = None,
 ) -> str:
     return "\n".join(
         [
             format_line(line, include_ip=include_ip),
-            format_mix(mix, provisional=mix_provisional),
+            format_mix(mix, by_hand=mix_by_hand, provisional=mix_provisional),
             format_hits(hits),
         ]
     )

@@ -14,8 +14,8 @@ import httpx
 import pandas as pd
 
 from pitching_agent.analytics import metrics
-from pitching_agent.analytics.lines import PITCH_ORDER
-from pitching_agent.compositor import SEP
+from pitching_agent.analytics.lines import order_mix
+from pitching_agent.compositor import SEP, format_mix
 from pitching_agent.services.tracker import GameTracker, Output, StarterTrack
 from pitching_agent.sources.mlb import GameInfo, MLBStatsAdapter
 from pitching_agent.sources.savant import SavantAdapter, SavantUnavailable
@@ -33,12 +33,14 @@ def format_to_date(games: list[dict[str, Any]], *, before_date: str, exclude_gam
     return f"Season to date: {line}" + (f" (incl. {post} postseason G)" if post else "")
 
 
+def _counts(frame: pd.DataFrame) -> dict[str, int]:
+    return order_mix({t: int(n) for t, n in frame["pitch_type"].dropna().value_counts().items()})
+
+
 def format_season_mix(frame: pd.DataFrame) -> str:
-    counts = frame["pitch_type"].dropna().value_counts()
-    rank = {t: i for i, t in enumerate(PITCH_ORDER)}
-    ordered = sorted(counts.index, key=lambda t: (rank.get(t, len(rank)), t))
-    body = SEP.join(f"{t} {100 * counts[t] / counts.sum():.0f}%" for t in ordered)
-    return f"Mix: {body} ({counts.sum():,} pitches)"
+    """Season mix: per pitch, count to left- / right-handed batters and share of all pitches."""
+    by_hand = {hand: _counts(frame[frame["stand"] == hand]) for hand in ("L", "R")}
+    return format_mix(_counts(frame), by_hand=by_hand)
 
 
 class Baselines:

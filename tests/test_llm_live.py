@@ -53,3 +53,5 @@ def test_classifies_unseen_observations():
     seq = results["he goes changeup every time after a sinker"]
     assert (seq["pitch_type"], seq["previous_pitch_type"], seq["metric"]) == ("CH", "SI", "share_after_previous_pitch_type"), seq
     assert results["curve is buried way more"]["previous_pitch_type"] is None
+    assert results["only throwing the change to lefties"]["batter_hand"] == "L"
+    assert results["curve is buried way more"]["batter_hand"] is None

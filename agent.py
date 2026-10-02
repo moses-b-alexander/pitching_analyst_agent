@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 import httpx  # noqa: E402
 
 from pitching_agent import __version__  # noqa: E402
-from pitching_agent.analytics.lines import window_hits, window_line, window_mix  # noqa: E402
+from pitching_agent.analytics.lines import window_hits, window_line, window_mix, window_mix_by_hand  # noqa: E402
 from pitching_agent.compositor import capsule  # noqa: E402
 from pitching_agent.config import load_config  # noqa: E402
 from pitching_agent.llm.client import LLMClient  # noqa: E402
@@ -43,7 +43,15 @@ async def snapshot(conn, game_id: int) -> None:
         if pid is None:
             continue
         print(f"\n{names.get(pid, pid)} ({getattr(info, side).abbrev} SP)")
-        print(capsule(window_line(pitches, pas, pid), window_mix(pitches, pid), window_hits(pas, pid), include_ip=True))
+        print(
+            capsule(
+                window_line(pitches, pas, pid),
+                window_mix(pitches, pid),
+                window_hits(pas, pid),
+                include_ip=True,
+                mix_by_hand=window_mix_by_hand(pitches, pid),
+            )
+        )
 
 
 async def live(conn, cfg, game_id: int, replay_delay: float | None) -> None:

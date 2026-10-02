@@ -18,7 +18,7 @@ from pitching_agent.models import Pitch
 COLUMNS = [
     "game", "inning", "at_bat_number", "pitch_number", "pitch_type", "release_speed", "pfx_x", "pfx_z",
     "plate_x", "plate_z", "sz_top", "sz_bot", "release_spin_rate", "release_pos_x", "release_pos_z",
-    "release_extension", "launch_angle", "launch_speed", "is_swing", "is_whiff", "prev_pitch_type",
+    "release_extension", "launch_angle", "launch_speed", "is_swing", "is_whiff", "stand", "prev_pitch_type",
 ]  # fmt: skip
 
 _SAVANT_WHIFF = {"swinging_strike", "swinging_strike_blocked"}
@@ -61,7 +61,7 @@ def tonight_frame(pitches: Iterable[Pitch], pitcher_id: int) -> pd.DataFrame:
         rows.append(
             (p.game_id, p.inning, p.at_bat_number, p.pitch_number, p.pitch_type, p.release_speed, p.pfx_x, p.pfx_z,
              p.plate_x, p.plate_z, p.sz_top, p.sz_bot, p.spin_rate, p.release_pos_x, p.release_pos_z,
-             p.release_extension, p.launch_angle, p.launch_speed, swing, whiff)
+             p.release_extension, p.launch_angle, p.launch_speed, swing, whiff, p.stand)
         )  # fmt: skip
     df = pd.DataFrame(rows, columns=COLUMNS[:-1]).sort_values(["at_bat_number", "pitch_number"])
     return _with_previous(df)[COLUMNS].reset_index(drop=True)

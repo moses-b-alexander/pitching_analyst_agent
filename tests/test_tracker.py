@@ -13,7 +13,8 @@ from pitching_agent.state import StarterState
 DEGROM_FINAL = (
     "DEGROM FINAL\n"
     "Line: 4.0 IP · 89 P · 58S/31B | 8 R/ER · 8 H | 5 K · 3 BB\n"
-    "Mix: FF 40 (45%) · SI 10 (11%) · SL 17 (19%) · CU 9 (10%) · CH 13 (15%)\n"
+    # per pitch: count to lefties / righties, then share of all pitches (verified against raw Savant rows)
+    "Mix (L/R 53/36): FF 28/12 (45%) · SI 0/10 (11%) · SL 7/10 (19%) · CU 6/3 (10%) · CH 12/1 (15%)\n"
     "Hits: S7 · S7 · S8 · S1 · T9 · S9 · D8 · S9"
 )
 
@@ -54,7 +55,7 @@ def test_full_game_sequence_with_half_inning_lag(final_feed):
     assert by_headline["RYAN T1"] == (
         "RYAN T1\n"
         "Line: 28 P · 19S/9B | 2 R · 2 H | 0 K · 0 BB\n"
-        "Mix: FF 11 (39%) · SI 1 (4%) · SL 1 (4%) · ST 9 (32%) · KC 2 (7%) · FS 4 (14%)\n"
+        "Mix (L/R 12/16): FF 4/7 (39%) · SI 0/1 (4%) · SL 0/1 (4%) · ST 3/6 (32%) · KC 1/1 (7%) · FS 4/0 (14%)\n"
         "Hits: D8 · S9"
     )
     assert by_headline["DEGROM FINAL"] == DEGROM_FINAL

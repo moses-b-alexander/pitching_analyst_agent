@@ -135,6 +135,8 @@ class Chat:
             subject = c["pitch_type"] or "any pitch"
             if c.get("previous_pitch_type") and c["metric"] == metrics.SEQUENCE_METRIC:
                 subject += f" after {c['previous_pitch_type']}"
+            if c.get("batter_hand") in ("L", "R"):
+                subject += f" vs {c['batter_hand']}HB"
             lines.insert(1, f"Class: {c['primary_class']} | Test: {c['test']} ({subject}, {c['metric']})")
             self._last = {"starter": s, "classification": c, "boundary": boundary, "text": text}
             if c["test"] != "none":

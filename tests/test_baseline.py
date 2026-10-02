@@ -20,6 +20,9 @@ from pitching_agent.store import connect, init_db
 
 GAME_DATE = "2026-09-25"
 
+# Per pitch: count to lefties / righties, then share of all pitches. Verified against raw Savant rows.
+SEASON_MIX = "Mix (L/R 1314/1024): FF 601/437 (44%) · SI 86/139 (10%) · SL 45/115 (7%) · ST 152/215 (16%) · KC 166/98 (11%) · FS 264/20 (12%)"
+
 
 @pytest.fixture(scope="module")
 def tonight(final_feed):
@@ -39,6 +42,7 @@ def baseline(savant_season_ryan):
 def test_every_metric_matches_between_feed_and_savant_for_the_same_game(tonight, savant_season_ryan):
     same_game = metrics.savant_frame(savant_season_ryan[savant_season_ryan.game_pk == GAME])
     assert len(tonight) == len(same_game) == 103
+    assert tonight["stand"].tolist() == same_game["stand"].tolist()  # batter side, pitch for pitch
     for pitch in (None, "FF", "ST", "FS", "KC", "SI", "SL"):
         for m in metrics.PROPORTION_METRICS:
             if m == metrics.SEQUENCE_METRIC or (m == "usage_share" and pitch is None):
@@ -119,6 +123,21 @@ def test_sequence_test_report(tonight, baseline):
         "Season starts (25): 4.0% to 43.8%, median 15.9% | tonight is above 23 of 25",
         "exact binomial (two-sided) | p=.061 | not significant at alpha .05",
     ]
+
+
+def test_batter_side_condition_compares_like_with_like(tonight, baseline):
+    c = {"test": "proportion_vs_baseline", "pitch_type": "FS", "metric": "usage_share", "batter_hand": "L"}
+    report = run_test(c, tonight, baseline, boundary_inning=0)
+    # raw Savant: 9 splitters in 55 pitches to lefties tonight; 264 in 1,316 before tonight
+    assert report.text.splitlines()[:3] == [
+        "Test: FS usage_share vs LHB, innings 1-6 (prospective)",
+        "Tonight: 9/55 (16.4%)",
+        "Baseline: 20.1% (n=1316) | Effect: -3.7 pp | 95% CI 7.8% to 28.8%",
+    ]
+    both = run_test({**c, "batter_hand": None}, tonight, baseline, boundary_inning=0)
+    assert both.text.splitlines()[1] == "Tonight: 9/103 (8.7%)"
+    only_righties = tonight[tonight["stand"] == "R"]
+    assert run_test(c, only_righties, baseline, boundary_inning=0).text == "No test: he has not faced a LHB yet."
 
 
 def test_window_is_prospective_only_when_pitches_follow_the_observation(tonight, baseline):
@@ -235,7 +254,7 @@ def test_running_totals_stop_before_tonight_and_fold_in_postseason(baseline):
         "Season to date: 4 G · 25.2 IP · 2.10 ERA · 33 K · 4 BB (incl. 1 postseason G)"
     )
     assert format_to_date([], before_date=GAME_DATE, exclude_game=GAME) == "Season to date: no appearances before tonight"
-    assert format_season_mix(baseline) == "Mix: FF 44% · SI 10% · SL 7% · ST 16% · KC 11% · FS 12% (2,338 pitches)"
+    assert format_season_mix(baseline) == SEASON_MIX
 
 
 def test_heart_zone_is_exactly_savants(savant_season_ryan, savant_heart_ryan):
@@ -264,7 +283,7 @@ def test_pregame_loads_each_starter_once_and_reports_gaps(final_feed, savant_sea
     assert len(out) == 2
     assert out["PREGAME Joe Ryan (MIN)"] == [
         "Season to date: 2 G · 13.0 IP · 2.77 ERA · 15 K · 3 BB",
-        "Mix: FF 44% · SI 10% · SL 7% · ST 16% · KC 11% · FS 12% (2,338 pitches)",
+        SEASON_MIX,
     ]
     assert out["PREGAME Jacob deGrom (TEX)"][1] == "No season pitch data before this game; baseline tests unavailable."
     assert list(baselines.frames) == [RYAN]
