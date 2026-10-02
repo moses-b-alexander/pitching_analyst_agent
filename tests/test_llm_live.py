@@ -21,6 +21,7 @@ PROBES = {
     "he's lost a couple ticks since the 3rd": "fatigue_trend",
     "way more sweepers than normal": "usage_proportion",
     "ryan is throwing a ton of sweepers": "usage_proportion",
+    "ryan is living on that sweeper": "usage_proportion",
     "his splitter has more drop tonight": "continuous_shape",
     "only throwing the change to lefties": "matchup_interaction",
     "they look late on the heater": "hitter_response",

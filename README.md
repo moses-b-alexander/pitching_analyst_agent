@@ -39,10 +39,12 @@ The products are the same as in the plugin:
    ```text
    Line: 28 P · 19S/9B | 2 R · 2 H | 0 K · 0 BB
    Mix (L/R 12/16): FF 4/7 (39%) · SI 0/1 (4%) · SL 0/1 (4%) · ST 3/6 (32%) · KC 1/1 (7%) · FS 4/0 (14%)
+   Velo: FF 93.7 (+0.2) · SI 93.2 (+0.0) · SL 86.5 (+0.2) · ST 79.8 (-0.6) · KC 80.1 (+1.0) · FS 88.9 (+1.1)
    Hits: D8 · S9
    ```
 
    In the Mix line each pitch shows its count to left-handed / right-handed batters, then its share of all pitches.
+   In the Velo line each pitch shows its average mph, then the difference from his season average.
 
 2. **Summary**: an evolving baseball model, with a small set of persistent theses.
 3. **Analyst**: turns an observation into a statistical question, so a casual remark becomes a testable hypothesis.
@@ -141,6 +143,7 @@ Done   /test: runs the test the model picked, in code, against the season baseli
 Done   Sequence metric: what he throws right after a given pitch
 Done   Find the game by team name (today by default, or --latest for their most recent game)
 Done   Left/right batter splits in every mix line (pregame, per inning, final) and as a test condition
+Done   Velo line in every capsule; /detail per-pitch table (tonight vs season), also given to the model
 ```
 
 ---

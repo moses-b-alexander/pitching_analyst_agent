@@ -23,7 +23,11 @@ from pitching_agent.text import GENERIC, tokens
 
 REPLY_SYSTEM = (
     "You are a pitching analyst sitting next to a viewer watching a live MLB game. "
-    "Reply in at most three short sentences. Use only the numbers provided; never invent a number. " + PITCH_CODES
+    "Reply in at most three short sentences. Use only the numbers provided; never invent a number. "
+    "Season averages are in parentheses. If the numbers given do not cover what the viewer says, say so. "
+    "In the Mix line, FF 4/7 (39%) means 4 four-seamers to left-handed batters, 7 to right-handed batters, "
+    "and four-seamers were 39% of all his pitches. In the Velo line the number in parentheses is the "
+    "difference from his season average. " + PITCH_CODES
 )
 
 TEST_SYSTEM = (
@@ -84,6 +88,8 @@ class Chat:
             return self._status()
         if command == "/obs":
             return self._list()
+        if command == "/detail":
+            return self._detail()
         if command == "/clear":
             self._last = None
             return f"Cleared {clear_game(self.conn, info.game_id)} observations for this game."
@@ -128,6 +134,7 @@ class Chat:
             return "\n".join(lines)
 
         capsule_now = self.tracker.starter_capsule(s)
+        table_now = self._table(s)
         try:
             c = await self.llm.chat_json(
                 [{"role": "system", "content": CLASSIFY_SYSTEM}, {"role": "user", "content": text}], CLASSIFY_SCHEMA
@@ -141,7 +148,7 @@ class Chat:
             self._last = {"starter": s, "classification": c, "boundary": boundary, "text": text}
             if c["test"] != "none":
                 lines.insert(3, "Type /test to run it.")
-            context = [f"{s.name} ({s.team}) tonight:", capsule_now]
+            context = [f"{s.name} ({s.team}) tonight:", capsule_now, "By pitch:", *table_now]
             if earlier:
                 context.append("Earlier viewer observations: " + "; ".join(o.raw_text for o in earlier))
             context.append(f"Viewer now says: {text}")
@@ -193,6 +200,22 @@ class Chat:
             return "Noted before his first pitch: everything he throws tonight is prospective."
         window = "inning 1" if n == 1 else f"innings 1-{n}"
         return f"Exploratory through {window}; prospective window starts with his inning {n + 1}."
+
+    def _table(self, s: StarterTrack) -> list[str]:
+        tonight = metrics.tonight_frame(self.tracker.pitches, s.pitcher_id)
+        return metrics.pitch_table(tonight, self.baselines.get(s.pitcher_id))
+
+    def _baseline_note(self, s: StarterTrack) -> str:
+        return ", season in parentheses" if s.pitcher_id in self.baselines else " (no season baseline loaded)"
+
+    def _detail(self) -> str:
+        """Per-pitch data the tests use, tonight vs season, for each starter who has pitched."""
+        blocks = [
+            "\n".join([f"{s.label} ({s.team}) by pitch" + self._baseline_note(s), *self._table(s)])
+            for s in self.tracker.candidates()
+            if self.tracker.innings_pitched_in(s)
+        ]
+        return "\n\n".join(blocks) or "No pitches yet."
 
     def _status(self) -> str:
         blocks = [

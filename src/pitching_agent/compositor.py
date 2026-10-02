@@ -78,6 +78,16 @@ def format_mix(
     return f"{label}: {body}" + (" [provisional]" if provisional else "")
 
 
+def format_velo(velo: Mapping[str, float], season: Mapping[str, float] | None = None) -> str:
+    """`Velo: FF 93.1 (-0.3) · ST 80.9 (+0.4)`: average mph per pitch, then the difference from
+    his season average for that pitch when a baseline is loaded."""
+    parts = []
+    for pt, mph in velo.items():
+        delta = f" ({mph - season[pt]:+.1f})" if season and pt in season else ""
+        parts.append(f"{pt} {mph:.1f}{delta}")
+    return "Velo: " + SEP.join(parts)
+
+
 def format_hits(hits: Sequence[str]) -> str:
     """Retrosheet-style hit line, e.g. `Hits: S8 · S7 · D9`."""
     return "Hits: " + (SEP.join(hits) if hits else "none")
@@ -91,11 +101,14 @@ def capsule(
     include_ip: bool = False,
     mix_provisional: bool = False,
     mix_by_hand: Mapping[str, Mapping[str, int]] | None = None,
+    velo: Mapping[str, float] | None = None,
+    season_velo: Mapping[str, float] | None = None,
 ) -> str:
-    return "\n".join(
-        [
-            format_line(line, include_ip=include_ip),
-            format_mix(mix, by_hand=mix_by_hand, provisional=mix_provisional),
-            format_hits(hits),
-        ]
-    )
+    lines = [
+        format_line(line, include_ip=include_ip),
+        format_mix(mix, by_hand=mix_by_hand, provisional=mix_provisional),
+    ]
+    if velo:
+        lines.append(format_velo(velo, season_velo))
+    lines.append(format_hits(hits))
+    return "\n".join(lines)

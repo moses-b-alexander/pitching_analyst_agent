@@ -16,7 +16,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from pitching_agent.analytics.lines import window_hits, window_line, window_mix, window_mix_by_hand
+from pitching_agent.analytics import metrics
+from pitching_agent.analytics.lines import window_hits, window_line, window_mix, window_mix_by_hand, window_velo
 from pitching_agent.analytics.windows import InningWindow
 from pitching_agent.compositor import capsule
 from pitching_agent.models import Half, Pitch, PlateAppearance
@@ -71,6 +72,9 @@ class GameTracker:
     def __init__(self, *, lag: int = 1, capsules: bool = True) -> None:
         self.lag = lag
         self.capsules = capsules
+        # pitcher id -> season metrics frame, filled in the background by services.pregame.
+        # Optional: without it the Velo line just has no season comparison.
+        self.baselines: dict[int, Any] = {}
         self.starters: dict[str, StarterTrack] = {}
         self.info: mlb.GameInfo | None = None
         self._printed: set[tuple[int, int]] = set()
@@ -127,6 +131,8 @@ class GameTracker:
             include_ip=True,
             mix_provisional=provisional,
             mix_by_hand=window_mix_by_hand(self._pitches, s.pitcher_id),
+            velo=window_velo(self._pitches, s.pitcher_id),
+            season_velo=metrics.season_velo(self.baselines.get(s.pitcher_id)),
         )
 
     # -- update -------------------------------------------------------------
@@ -196,6 +202,8 @@ class GameTracker:
                 window_mix(self._pitches, s.pitcher_id, window),
                 window_hits(self._pas, s.pitcher_id, window),
                 mix_by_hand=window_mix_by_hand(self._pitches, s.pitcher_id, window),
+                velo=window_velo(self._pitches, s.pitcher_id, window),
+                season_velo=metrics.season_velo(self.baselines.get(s.pitcher_id)),
             )
             outputs.append(Output("capsule", f"{s.label} {_half_label(k)}\n{body}", s.pitcher_id))
         return outputs

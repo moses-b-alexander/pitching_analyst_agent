@@ -47,7 +47,7 @@ CLASSIFY_SYSTEM = f"""You classify a baseball viewer's observation about a start
 {PITCH_CODES}
 
 Classes (pick the single best):
-- usage_proportion: how OFTEN a pitch is thrown ("throwing way more sliders", "curve usage is up")
+- usage_proportion: how OFTEN a pitch is thrown ("throwing way more sliders", "curve usage is up", "living on the changeup", "leaning on the cutter")
 - continuous_shape: the pitch itself changed: movement, spin, break, release point ("slider looks flatter", "more ride on the heater")
 - location_spatial: WHERE pitches end up ("curve looks lower", "everything is up", "living on the outside edge")
 - sequence_transition: what pitch follows what, or pitch choice by count ("sinker after four-seamers", "always curve first pitch")

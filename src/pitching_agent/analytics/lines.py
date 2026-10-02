@@ -73,6 +73,15 @@ def window_mix_by_hand(
     return {hand: order_mix(counts) for hand, counts in out.items()}
 
 
+def window_velo(pitches: Iterable[Pitch], pitcher_id: int, window: InningWindow | None = None) -> dict[str, float]:
+    """Average velocity (mph) per pitch type, in display order. Pitches without a reading are skipped."""
+    speeds: dict[str, list[float]] = {}
+    for p in pitches:
+        if p.pitcher_id == pitcher_id and _in(window, p.inning) and p.pitch_type and p.release_speed is not None:
+            speeds.setdefault(p.pitch_type, []).append(p.release_speed)
+    return {t: sum(speeds[t]) / len(speeds[t]) for t in order_mix({t: len(v) for t, v in speeds.items()})}
+
+
 def window_hits(pas: Iterable[PlateAppearance], pitcher_id: int, window: InningWindow | None = None) -> list[str]:
     return [
         a.hit_code

@@ -159,3 +159,64 @@ def per_game(
             if len(v) >= min_n:
                 out.append(float(v.mean()))
     return np.array(out)
+
+
+def season_velo(baseline: pd.DataFrame | None) -> dict[str, float]:
+    """Season average velocity per pitch type."""
+    if baseline is None or baseline.empty:
+        return {}
+    return baseline.dropna(subset=["release_speed", "pitch_type"]).groupby("pitch_type")["release_speed"].mean().to_dict()
+
+
+_TABLE_VALUES = (
+    ("release_speed", "velo", "{:.1f}", "mph"),
+    ("vertical_break", "vert break", "{:.1f}", "in"),
+    ("horizontal_break", "horiz break", "{:+.1f}", "in"),
+    ("spin_rate", "spin", "{:.0f}", "rpm"),
+)
+_TABLE_RATES = (
+    ("share_in_zone", "in zone", ""),
+    ("share_heart_of_zone", "heart", ""),
+    ("share_below_zone", "below zone", ""),
+    ("whiff_rate", "whiffs", " swings"),
+)
+
+
+def pitch_table(tonight: pd.DataFrame, baseline: pd.DataFrame | None = None) -> list[str]:
+    """One line per pitch type with the data the tests use, tonight and (in parentheses) his season.
+
+    Shown by /detail and given to the model, so its replies have real numbers to draw on.
+    """
+    from pitching_agent.analytics.lines import order_mix
+
+    has_base = baseline is not None and not baseline.empty
+    counts = tonight["pitch_type"].dropna().value_counts()
+    rows = []
+    for pt in order_mix({t: int(n) for t, n in counts.items()}):
+        parts = [f"{pt}: {counts[pt]} thrown"]
+        for metric, label, fmt, unit_ in _TABLE_VALUES:
+            v = values(tonight, metric, pt)
+            if len(v) == 0:
+                continue
+            text = f"{label} {fmt.format(v.mean())} {unit_}"
+            if has_base and len(b := values(baseline, metric, pt)):
+                text += f" (season {fmt.format(b.mean())})"
+            parts.append(text)
+        for metric, label, suffix in _TABLE_RATES:
+            k, n = proportion(tonight, metric, pt)
+            if n == 0:
+                continue
+            text = f"{label} {k}/{n}{suffix}"
+            if has_base:
+                k0, n0 = proportion(baseline, metric, pt)
+                if n0:
+                    text += f" (season {100 * k0 / n0:.0f}%)"
+            parts.append(text)
+        rows.append(" | ".join(parts))
+
+    if len(counts):  # velocity by inning for his most-thrown pitch: the fatigue question
+        main = counts.idxmax()
+        by_inning = tonight[tonight["pitch_type"] == main].dropna(subset=["release_speed"]).groupby("inning")["release_speed"].mean()
+        if len(by_inning) > 1:
+            rows.append(f"{main} velo by inning: " + " | ".join(f"I{int(i)} {v:.1f}" for i, v in by_inning.items()))
+    return rows

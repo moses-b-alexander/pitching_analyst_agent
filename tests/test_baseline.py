@@ -363,3 +363,59 @@ def test_boundary_is_fixed_when_the_viewer_speaks_not_when_the_model_answers(fin
     tested = asyncio.run(chat.handle("/test")).splitlines()
     assert tested[1] == "Test: ST usage_share, innings 3-6 (prospective)"
     assert tested[2] == "Tonight: 16/63 (25.4%)"
+
+
+# -- velocity line and per-pitch table -------------------------------------------------
+
+
+def test_velo_line_shows_difference_from_season(final_feed, baseline):
+    tracker = GameTracker()
+    tracker.baselines = {RYAN: baseline}
+    tracker.update(final_feed)
+    ryan = tracker.starters["home"]
+    # raw Savant means: game FF 93.13 / season 93.48, SL 85.59 / 86.33, FS 88.41 / 87.88
+    assert tracker.starter_capsule(ryan).splitlines()[2] == (
+        "Velo: FF 93.1 (-0.3) · SI 93.1 (-0.1) · SL 85.6 (-0.7) · ST 79.5 (-0.9) · KC 79.2 (+0.1) · FS 88.4 (+0.5)"
+    )
+    degrom = tracker.starters["away"]  # no baseline loaded for him: plain averages, no comparison
+    assert tracker.starter_capsule(degrom).splitlines()[2] == "Velo: FF 97.5 · SI 96.8 · SL 92.9 · CU 83.7 · CH 90.7"
+
+
+def test_pitch_table_has_real_numbers_for_the_model(tonight, baseline):
+    rows = metrics.pitch_table(tonight, baseline)
+    assert rows[0] == (
+        "FF: 43 thrown | velo 93.1 mph (season 93.5) | vert break 14.4 in (season 13.5) | horiz break -14.0 in (season -13.3)"
+        " | spin 2291 rpm (season 2288) | in zone 27/43 (season 56%) | heart 15/43 (season 32%) | below zone 1/43 (season 2%)"
+        " | whiffs 3/17 swings (season 21%)"
+    )
+    assert [r.split(":")[0] for r in rows[:6]] == ["FF", "SI", "SL", "ST", "KC", "FS"]
+    assert rows[-1] == "FF velo by inning: I1 93.7 | I2 92.7 | I3 93.2 | I4 93.2 | I5 93.0 | I6 92.8"
+    plain = metrics.pitch_table(tonight)  # without a baseline: same rows, no season figures
+    assert plain[0].startswith("FF: 43 thrown | velo 93.1 mph | vert break 14.4 in") and "season" not in plain[0]
+    assert metrics.pitch_table(tonight.iloc[0:0]) == []
+
+
+def test_detail_command_and_model_context(final_feed, baseline):
+    conn = connect(":memory:")
+    init_db(conn)
+    tracker = GameTracker()
+    tracker.update(final_feed)
+    model = Model({"primary_class": "fatigue_trend", "test": "trend", "pitch_type": "FF", "metric": "release_speed"})
+    seen = []
+
+    async def chat_capture(messages, **kwargs):
+        seen.append(messages)
+        return "Noted."
+
+    model.chat = chat_capture
+    chat = Chat(tracker, conn, model, baselines={RYAN: baseline})
+
+    detail = asyncio.run(chat.handle("/detail"))
+    assert "RYAN (MIN) by pitch, season in parentheses\nFF: 43 thrown | velo 93.1 mph (season 93.5)" in detail
+    assert "DEGROM (TEX) by pitch (no season baseline loaded)\nFF: 40 thrown | velo 97.5 mph |" in detail
+
+    asyncio.run(chat.handle("ryan's velo looks cooked"))
+    system, user = seen[0][0]["content"], seen[0][1]["content"]
+    assert "By pitch:\nFF: 43 thrown | velo 93.1 mph (season 93.5)" in user  # the velocity it used to invent
+    assert "FF velo by inning: I1 93.7" in user
+    assert "to left-handed batters" in system and "never invent a number" in system
